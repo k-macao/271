@@ -912,6 +912,9 @@ def build_single_wechat_html(now=None):
           f'噪音 {len(_scan["noise"])} 项 · 覆盖 {int(_scan["coverage"] * 100)}% · '
           f'做多合成分 {_scan["verdict"]["long_score"]:+.1f}（{_scan["verdict"]["stance"]}）')
 
+    # 开头先给一条极简多空轴：让读者先看到方向与合成分，再进入长篇证据链。
+    # 轴的分数直接来自同一份全景扫描，不另造一套多空口径。
+    fig_long_short = char_charts.long_short_chart(_scan.get('verdict'))[0]
     fig_forces = char_charts.forces_chart(_scan)[0]
     fig_community = char_charts.community_chart(community_counts)[0]
 
@@ -953,6 +956,7 @@ def build_single_wechat_html(now=None):
     <div style="color:{WECHAT_TEXT_SOFT};font-size:13px;margin-top:6px;font-family:'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;">全网 AI 调研境内境外数据 · 多模型混合部署 · 将市场信号编译为可执行战术</div>
   </div>
 
+  {fig_long_short}
   {community_overview_html}
 
   {h('01 / 每日全球全景扫描 (Daily Global Panorama Scan · 5 大推动力量 · 每次构建现算)')}

@@ -272,7 +272,105 @@ button, a { -webkit-tap-highlight-color:transparent; }
 .raid-nav a:hover, .raid-nav a:focus-visible { color:var(--cyan); background:rgba(79,229,255,.075); }
 .raid-nav a:hover::after, .raid-nav a:focus-visible::after { transform:scaleX(1); }
 .raid-nav b { margin-right:7px; color:var(--pink); font-family:var(--mono); font-size:9px; }
-.main { padding:20px 30px 32px; }
+.main { padding:34px 30px 32px; }
+/* 开头留出呼吸感，并先用极简字符轴交代多空方向；不把方向藏在长文末尾。 */
+.opening-brief {
+  position:relative;
+  overflow:hidden;
+  margin:0 0 38px;
+  padding:29px 24px 30px;
+  border:1px solid rgba(79,229,255,.32);
+  border-radius:8px;
+  background:linear-gradient(135deg, rgba(17,25,48,.94), rgba(9,13,26,.94));
+  box-shadow:inset 0 0 28px rgba(79,229,255,.045), 0 14px 30px rgba(0,0,0,.16);
+}
+.opening-brief::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  width:92px;
+  height:2px;
+  background:linear-gradient(90deg,var(--cyan),var(--pink));
+  box-shadow:0 0 14px rgba(79,229,255,.5);
+}
+.opening-brief::after {
+  content:"01";
+  position:absolute;
+  right:21px;
+  bottom:-18px;
+  color:rgba(79,229,255,.06);
+  font:700 88px/.8 var(--serif);
+  pointer-events:none;
+}
+.opening-kicker {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--cyan);
+  font:700 10px/1 var(--mono);
+  letter-spacing:.14em;
+}
+.opening-kicker span { color:var(--muted); letter-spacing:.06em; }
+.opening-title {
+  margin-top:12px;
+  color:var(--ink);
+  font:700 clamp(19px,3vw,26px)/1.2 var(--serif);
+  letter-spacing:.04em;
+}
+.opening-axis {
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:25px 0 9px;
+  padding:17px 15px;
+  overflow-x:auto;
+  color:var(--muted-strong);
+  background:rgba(3,7,16,.58);
+  border:1px solid rgba(142,163,220,.18);
+  border-radius:4px;
+  font:700 12px/1 var(--mono);
+  white-space:nowrap;
+}
+.opening-axis-side { flex:0 0 auto; }
+.opening-axis-side.bear { color:var(--danger); }
+.opening-axis-side.bull { color:var(--neon); }
+.opening-axis-track {
+  flex:1 1 auto;
+  min-width:250px;
+  overflow:hidden;
+  color:var(--muted-strong);
+  text-align:center;
+  letter-spacing:.03em;
+}
+.opening-scale {
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  padding:0 86px;
+  color:var(--muted);
+  font:10px/1 var(--mono);
+}
+.opening-scale span:nth-child(2) { color:var(--violet); }
+.opening-reading {
+  position:relative;
+  z-index:1;
+  margin-top:21px;
+  color:var(--muted-strong);
+  font-size:12px;
+}
+.opening-reading .marker { color:var(--pink); margin-right:5px; }
+.opening-reading strong { color:var(--neon); font-family:var(--mono); }
+.opening-reading em { color:var(--cyan); font-style:normal; }
+.opening-note {
+  position:relative;
+  z-index:1;
+  margin-top:8px;
+  color:var(--muted);
+  font:10px/1.7 var(--mono);
+}
 .pub-heading {
   display:flex;
   align-items:center;
@@ -509,7 +607,13 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
   .hud-stat { padding:11px 14px; border-bottom:1px solid rgba(142,163,220,.16); }
   .hud-stat:nth-child(2n) { border-right:none; }
   .raid-nav a { padding:11px 13px; font-size:10px; }
-  .main { padding:16px 15px 22px; }
+  .main { padding:27px 15px 22px; }
+  .opening-brief { margin-bottom:29px; padding:24px 16px 25px; }
+  .opening-title { margin-top:10px; font-size:21px; }
+  .opening-axis { align-items:flex-start; flex-wrap:wrap; gap:8px; margin-top:20px; padding:14px 11px; line-height:1.4; }
+  .opening-axis-track { order:3; flex-basis:100%; min-width:0; padding-top:4px; }
+  .opening-scale { padding:0 5px; }
+  .opening-reading { margin-top:17px; }
   .pub-heading { margin-top:31px; font-size:18px; }
   .pub-box, .quant-box, .pub-card { padding:14px; }
   .push-wrap { padding:16px; }
@@ -556,6 +660,19 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
   </nav>
 
   <main class="main">
+
+    <section class="opening-brief" aria-labelledby="openingSignalTitle">
+      <div class="opening-kicker">OPENING SIGNAL <span>多空先行 · 证据随后</span></div>
+      <h2 class="opening-title" id="openingSignalTitle">开局先看多空，再看故事</h2>
+      <div class="opening-axis" role="img" aria-label="多空方向轴：左侧为空头防守，右侧为多头进攻">
+        <span class="opening-axis-side bear">空头 / 防守</span>
+        <span class="opening-axis-track">◀──────────────┼──────────────▶</span>
+        <span class="opening-axis-side bull">多头 / 进攻</span>
+      </div>
+      <div class="opening-scale"><span>减仓 / 对冲</span><span>观望</span><span>分批建仓</span></div>
+      <div class="opening-reading"><span class="marker">●</span>恒指当次读数：<strong>{{HSI_PCT}}</strong>　<em>综合多空结论见 01 栏</em></div>
+      <div class="opening-note">字符轴只做方向提示；合成分、置信度与证据链均来自本次构建，不预设多空。</div>
+    </section>
 
     <div class="push-wrap">
       <div class="push-title">微信推送 · 一对多群组单页完整直推 (oai.1 群)</div>
