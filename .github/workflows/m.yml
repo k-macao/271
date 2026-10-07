@@ -227,4 +227,51 @@ jobs:
       - name: 🌐 动态抓取行情 (market_data.py)
         run: python3 market_data.py
 
-      - name: 🗣️ 动态抓取社区 (community_data.py · 49 
+      - name: 🗣️ 动态抓取社区 (community_data.py · 49 源)
+        run: python3 community_data.py
+
+      - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)
+        run: python3 tools/probe_sentiment_apis.py --mock
+
+      - name: 🗞️ 舆情/新闻因子合成 (sentiment_factors.py → sentiment_data.json · 平台现成因子优先)
+        run: |
+          set +e
+          timeout 240 python3 sentiment_factors.py --live --timeout 8
+          if python3 -c "import json,sys;d=json.load(open('sentiment_data.json',encoding='utf-8'));sys.exit(0 if (d.get('summary') or {}).get('ok') else 1)"; then
+            echo "✅ 舆情因子：境内数据源联网实测可用（平台现成因子优先）"
+          else
+            echo "⚠️ 舆情因子：GitHub 海外出口取不到境内数据域（聚宽/米筐等按 IP 拒绝）→ 降级离线回放 --mock，页面与推送显示降级说明"
+            python3 sentiment_factors.py --mock
+          fi
+          set -e
+
+      - name: 🏗️ 动态构建报告 (build_site.py · 行情+社区+宏观快讯注入)
+        run: python3 build_site.py
+
+      - name: 💾 保存 AI 预测存档 (供下次运行结算已到期的预测)
+        # key 带 job 名：schedule 触发时 deploy 与 daily 并行，同 key 保存会撞车
+        # （Actions 的 cache key 不可覆盖）；restore 用前缀回退，照样取到最新那份。
+        # hashFiles 守卫：build_site.py 没跑成时文件不存在，直接 save 会报路径错误。
+        if: always() && hashFiles('forecast_history.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: forecast_history.json
+          key: forecast-history-${{ github.run_id }}-${{ github.job }}
+
+      - name: 🧩 内嵌微信推送负载
+        run: python3 tools/wechat_push.py --embed
+
+      - name: 📲 推送完整报告到微信 (PushPlus · 定时宽松校验)
+        run: |
+          set +e
+          OUT=$(python3 tools/wechat_push.py --push --scheduled 2>&1)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          {
+            echo '### 📲 微信推送结果（定时 09:00）'
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
