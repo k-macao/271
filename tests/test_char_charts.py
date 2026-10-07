@@ -63,6 +63,21 @@ class TestChartGeometry(unittest.TestCase):
         self.assertIn('偏多6', plain.replace(' ', ''))
         self.assertIn('分歧2', plain.replace(' ', ''))
 
+    def test_opening_long_short_axis_is_data_driven(self):
+        _html, plain = char_charts.long_short_chart({
+            'long_score': -18.5, 'stance': '偏防御'})
+        self.assertIn('空头', plain)
+        self.assertIn('多', plain)
+        self.assertIn('|', plain)
+        self.assertIn('-18.5', plain)
+        self.assertIn('固定刻度', plain)
+
+    def test_opening_long_short_axis_does_not_turn_missing_into_zero(self):
+        html, plain = char_charts.long_short_chart({'long_score': 0.0, 'can_long': 'unknown'})
+        self.assertIn('不把缺失数据画成中性 0', plain)
+        self.assertIn('不编柱', html)
+        self.assertNotIn('0.0', plain)
+
 
 class TestPushFigures(unittest.TestCase):
     def _render(self, extra_env=None):

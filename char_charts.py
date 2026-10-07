@@ -253,6 +253,32 @@ def community_chart(counts):
     return _rows_html(title, rows, note), _plain(title, rows, note)
 
 
+def long_short_chart(verdict):
+    """开头用一条固定刻度的字符轴交代多空合成分。
+
+    这张图故意保持极简：零线居中、空头在左、多头在右，数值仍来自
+    panorama 的当次 verdict。合成分缺失时不把缺失误画成中性 0。
+    """
+    title = '多空坐标 · 做多合成分（固定 ±100）'
+    verdict = verdict or {}
+    score = _num(verdict.get('long_score'))
+    # panorama 会保留中间计算分，但 can_long=unknown 时结论并不成立；
+    # 此时必须留空，不能把内部的 0.0 误读成「中性」。
+    if score is None or verdict.get('can_long') == 'unknown':
+        note = '当次没有可用做多合成分，不标方向、不把缺失数据画成中性 0。'
+        return _rows_html(title, [], note), _plain(title, [], note)
+
+    axis = diverging_bar(score, 100, half=12)
+    stance = str(verdict.get('stance') or '当次结论未标注')
+    rows = [
+        ('空头 / 防守  ←', axis, f'{score:+.1f}'),
+        ('阈值', '−25    −10      0      +10    +25', stance),
+    ]
+    note = ('▓ 左侧 = 空 / 防守，| = 中性轴，█ 右侧 = 多 / 进攻。'
+            '固定刻度 ±100，不按当次最大值拉伸；−10 / +10 / +25 为决策阈值。')
+    return _rows_html(title, rows, note), _plain(title, rows, note)
+
+
 def pairs_chart(quotes):
     """每条配对策略的 z。只画两腿涨跌幅都在的组合。"""
     title = '配对 z diverging bar（|z|=1 为进场）'
@@ -438,6 +464,10 @@ def _self_test():
     ok('字符柱进了微信表格', '<table' in html_q and 'diverging barh' in html_q)
     html_c, plain_c = community_chart({'bull': 6, 'bear': 3, 'neutral': 3, 'mixed': 2})
     ok('社区构成写出家数', '共 14 家' in plain_c and '偏多6' in plain_c.replace(' ', ''))
+    html_ls, plain_ls = long_short_chart({'long_score': -18.5, 'stance': '偏防御'})
+    ok('开头多空轴保留零线与方向', '|' in plain_ls and '空头' in plain_ls and '多' in plain_ls and '-18.5' in plain_ls)
+    html_ls, plain_ls = long_short_chart({})
+    ok('开头缺合成分不编中性柱', '不把缺失数据画成中性 0' in plain_ls and FULL not in plain_ls)
     html_p, plain_p = pairs_chart({})
     ok('配对缺腿不编 z', '不编柱' in html_p and 'z=' not in plain_p)
     html_s, plain_s = sentiment_chart({})
