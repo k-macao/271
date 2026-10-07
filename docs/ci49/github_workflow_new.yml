@@ -1,0 +1,356 @@
+# =====================================================================
+# 📄 Deploy Report to Pages + 📲 WeChat Push + 🖥️ Zectrix E-Ink Sync
+# (整合版工作流 · 动态抓取三管线：行情+社区+舆情+墨水屏同步)
+#
+# 触发方式:
+#   1. push 到 main            → 动态抓取行情+社区 → 动态建站 → 部署 Pages + 推送微信 + 同步墨水屏
+#   2. Actions 页面手动运行     → 同上, 可用 wechat_push / eink_push 开关选择是否推送
+#   3. 每天北京时间 09:00 定时   → 自动重建站点 + 推送微信 + 同步墨水屏 (无需手动操作)
+#
+# 动态抓取管线 (每次运行均执行, 真正上线 — 行情+社区双动态):
+#   market_data.py      → market_data.json      (Yahoo Finance 主源 → Stooq 回退 + 交叉校正)
+#   verify_quotes.py    → verify_report.json    (推送前全来源数据准确性校验 · FAIL 阻断推送)
+#   community_data.py   → community_data.json   (49 大社区 HTTP GET + 动态模板回退，每次刷新当天日期)
+#   tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md (量化平台舆情接口实测评分)
+#   sentiment_factors.py → sentiment_data.json (聚宽/米筐/掘金/优矿 + 免费兜底源舆情·新闻因子；境内取不到则 --mock 降级)
+#   build_site.py       → report.html           (把行情+社区+抓取日期注入页面与推送内容)
+#   wechat_push.py --embed                       (把最新推送负载内嵌进 report.html)
+#   wechat_push.py --emit _site/wechat.json
+#   wechat_push.py --push --scheduled            (推送前日期宽松校验, 单品行情/社区失败不阻断)
+#   eink_push.py --mode report --pages 1,2,3,4   (极趣墨水屏同步：03日报浓缩4页 → Zectrix, 复用10_sync接口)
+# =====================================================================
+name: 📄 Deploy Report to Pages + 📲 WeChat Push + 🖥️ E-Ink
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      wechat_push:
+        description: '推送完整报告到微信 (PushPlus)'
+        type: boolean
+        default: true
+        required: false
+      eink_push:
+        description: '同步到极趣墨水屏 (Zectrix)'
+        type: boolean
+        default: true
+        required: false
+      eink_mode:
+        description: '墨水屏模式 (report/news/both)'
+        type: choice
+        default: 'report'
+        required: false
+        options:
+          - report
+          - news
+          - both
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🌐 动态抓取行情 (market_data.py → market_data.json)
+        run: python3 market_data.py
+
+      - name: 🧪 全来源数据校验 (verify_quotes.py · 报告公开到 _site, 不阻断页面部署)
+        run: |
+          python3 verify_quotes.py --data market_data.json --json verify_report.json --text > verify_summary.txt || true
+          if [ -f verify_summary.txt ]; then cat verify_summary.txt >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: 🗣️ 动态抓取社区 (community_data.py → community_data.json · 49 源)
+        run: python3 community_data.py
+
+      - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)
+        run: python3 tools/probe_sentiment_apis.py --mock
+
+      - name: 🗞️ 舆情/新闻因子合成 (sentiment_factors.py → sentiment_data.json)
+        run: |
+          set +e
+          timeout 240 python3 sentiment_factors.py --live --timeout 8
+          if python3 -c "import json,sys;d=json.load(open('sentiment_data.json',encoding='utf-8'));sys.exit(0 if (d.get('summary') or {}).get('ok') else 1)"; then
+            echo "✅ 舆情因子可用"
+          else
+            echo "⚠️ 降级 --mock"
+            python3 sentiment_factors.py --mock
+          fi
+          set -e
+
+      - name: 🧪 舆情层自检
+        run: |
+          python3 sentiment_nlp.py --self-test
+          python3 sentiment_adapters.py --mode mock >/dev/null
+          python3 -m unittest discover -s tests
+
+      - name: 🏗️ 动态构建报告 (build_site.py)
+        run: python3 build_site.py
+
+      - name: 🧩 内嵌微信推送负载 (wechat-parts → report.html)
+        run: python3 tools/wechat_push.py --embed
+
+      - name: 📦 安装 E-Ink 依赖 (requests pillow)
+        run: pip install requests pillow
+
+      - name: 🖥️ 极趣墨水屏预览 (dry-run)
+        run: |
+          python3 tools/eink_push.py --mode report --pages 1,2,3,4 --dry-run
+          echo "### 🖥️ 极趣墨水屏预览" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh page_*.png >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+
+      - name: 📁 准备部署目录
+        run: |
+          mkdir -p _site
+          cp report.html _site/index.html
+          cp market_data.json _site/market_data.json
+          cp verify_report.json _site/verify_report.json 2>/dev/null || echo "skip"
+          cp community_data.json _site/community_data.json || echo "skip"
+          cp sentiment_data.json _site/sentiment_data.json || echo "skip"
+          cp page_*.png _site/ 2>/dev/null || echo "eink preview skip"
+          cp -r docs _site/docs 2>/dev/null || echo "docs skip"
+
+      - name: 🧩 生成微信推送内容 (wechat.json)
+        run: python3 tools/wechat_push.py --emit _site/wechat.json
+
+      - name: ⚙️ 配置 Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📤 上传产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: 🚀 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  wechat:
+    needs: deploy
+    if: ${{ github.event_name == 'push' || inputs.wechat_push || inputs.eink_push }}
+    runs-on: ubuntu-latest
+    env:
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      ZECTRIX_API_KEY: ${{ secrets.ZECTRIX_API_KEY }}
+      ZECTRIX_MAC: ${{ secrets.ZECTRIX_MAC }}
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🌐 动态抓取行情
+        run: python3 market_data.py
+
+      - name: 🧪 推送前全来源数据校验 (FAIL 阻断推送)
+        run: |
+          python3 verify_quotes.py --data market_data.json --json verify_report.json --text > verify_summary.txt
+          cat verify_summary.txt
+          cat verify_summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 🗣️ 动态抓取社区
+        run: python3 community_data.py
+
+      - name: 🔬 舆情接口实测
+        run: python3 tools/probe_sentiment_apis.py --mock
+
+      - name: 🗞️ 舆情/新闻因子合成
+        run: |
+          set +e
+          timeout 240 python3 sentiment_factors.py --live --timeout 8
+          if python3 -c "import json,sys;d=json.load(open('sentiment_data.json',encoding='utf-8'));sys.exit(0 if (d.get('summary') or {}).get('ok') else 1)"; then
+            echo "✅ 舆情因子可用"
+          else
+            echo "⚠️ 降级 --mock"
+            python3 sentiment_factors.py --mock
+          fi
+          set -e
+
+      - name: 🏗️ 动态构建报告
+        run: python3 build_site.py
+
+      - name: 🧩 内嵌微信推送负载
+        run: python3 tools/wechat_push.py --embed
+
+      - name: 📦 安装推送依赖
+        run: pip install requests pillow
+
+      - name: 📲 推送完整报告到微信 (PushPlus)
+        if: ${{ github.event_name == 'push' || inputs.wechat_push }}
+        run: |
+          set +e
+          OUT=$(python3 tools/wechat_push.py --push --scheduled 2>&1)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          {
+            echo '### 📲 微信推送结果'
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+      - name: 🖥️ 同步到极趣墨水屏 (Zectrix)
+        if: ${{ inputs.eink_push != false }}
+        run: |
+          set +e
+          MODE="${{ inputs.eink_mode || 'report' }}"
+          if [ -z "$ZECTRIX_API_KEY" ] || [ -z "$ZECTRIX_MAC" ]; then
+            echo "⚠️ 未配置 ZECTRIX 密钥，dry-run"
+            python3 tools/eink_push.py --mode "$MODE" --pages 1,2,3,4 --dry-run
+            echo "### 🖥️ 极趣墨水屏同步（$MODE · dry-run）" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          OUT=$(python3 tools/eink_push.py --mode "$MODE" --pages 1,2,3,4 2>&1)
+          CODE=$?
+          echo "$OUT"
+          {
+            echo "### 🖥️ 极趣墨水屏同步结果（$MODE）"
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+  daily:
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    env:
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      ZECTRIX_API_KEY: ${{ secrets.ZECTRIX_API_KEY }}
+      ZECTRIX_MAC: ${{ secrets.ZECTRIX_MAC }}
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🌐 动态抓取行情
+        run: python3 market_data.py
+
+      - name: 🧪 推送前全来源数据校验 (FAIL 阻断推送)
+        run: |
+          python3 verify_quotes.py --data market_data.json --json verify_report.json --text > verify_summary.txt
+          cat verify_summary.txt
+          cat verify_summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 🗣️ 动态抓取社区
+        run: python3 community_data.py
+
+      - name: 🔬 舆情接口实测
+        run: python3 tools/probe_sentiment_apis.py --mock
+
+      - name: 🗞️ 舆情/新闻因子合成
+        run: |
+          set +e
+          timeout 240 python3 sentiment_factors.py --live --timeout 8
+          if python3 -c "import json,sys;d=json.load(open('sentiment_data.json',encoding='utf-8'));sys.exit(0 if (d.get('summary') or {}).get('ok') else 1)"; then
+            echo "✅ 舆情因子可用"
+          else
+            echo "⚠️ 降级 --mock"
+            python3 sentiment_factors.py --mock
+          fi
+          set -e
+
+      - name: 🏗️ 动态构建报告
+        run: python3 build_site.py
+
+      - name: 🧩 内嵌微信推送负载
+        run: python3 tools/wechat_push.py --embed
+
+      - name: 📦 安装推送依赖
+        run: pip install requests pillow
+
+      - name: 📲 推送完整报告到微信 (定时 09:00)
+        run: |
+          set +e
+          OUT=$(python3 tools/wechat_push.py --push --scheduled 2>&1)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          {
+            echo '### 📲 微信推送结果（定时 09:00）'
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+      - name: 🖥️ 同步到极趣墨水屏 (定时 09:00)
+        run: |
+          set +e
+          if [ -z "$ZECTRIX_API_KEY" ] || [ -z "$ZECTRIX_MAC" ]; then
+            echo "⚠️ 未配置 ZECTRIX 密钥，跳过"
+            exit 0
+          fi
+          OUT=$(python3 tools/eink_push.py --mode report --pages 1,2,3,4 2>&1)
+          CODE=$?
+          echo "$OUT"
+          {
+            echo '### 🖥️ 极趣墨水屏同步结果（定时 09:00）'
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+  eink:
+    if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || inputs.eink_push }}
+    runs-on: ubuntu-latest
+    env:
+      ZECTRIX_API_KEY: ${{ secrets.ZECTRIX_API_KEY }}
+      ZECTRIX_MAC: ${{ secrets.ZECTRIX_MAC }}
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🌐 动态抓取行情
+        run: python3 market_data.py
+
+      - name: 🗣️ 动态抓取社区
+        run: python3 community_data.py
+
+      - name: 🗞️ 舆情因子合成
+        run: |
+          set +e
+          timeout 120 python3 sentiment_factors.py --live --timeout 8 || python3 sentiment_factors.py --mock
+          set -e
+
+      - name: 🏗️ 动态构建报告
+        run: python3 build_site.py
+
+      - name: 📦 安装 E-Ink 依赖
+        run: pip install requests pillow
+
+      - name: 🖥️ 极趣墨水屏同步 (10_sync 接口复用)
+        run: |
+          set +e
+          MODE="${{ inputs.eink_mode || 'report' }}"
+          echo "模式: $MODE | 接口来源: k-macao/10_sync"
+          if [ -z "$ZECTRIX_API_KEY" ] || [ -z "$ZECTRIX_MAC" ]; then
+            echo "⚠️ 未配置密钥，dry-run"
+            python3 tools/eink_push.py --mode "$MODE" --pages 1,2,3,4 --dry-run
+            exit 0
+          fi
+          OUT=$(python3 tools/eink_push.py --mode "$MODE" --pages 1,2,3,4 2>&1)
+          CODE=$?
+          echo "$OUT"
+          {
+            echo "### 🖥️ 极趣墨水屏独立同步（$MODE）"
+            echo '```text'
+            echo "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
