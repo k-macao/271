@@ -581,7 +581,7 @@ def render_web(rec, compact=False, note=''):
         '<div class="ai-quant" data-ai-quant="1" data-strategy="' + _esc(rec['strategy_id']) + '"'
         ' data-domain-pair="' + _esc(rec.get('domain_pair', '')) + '">\n'
         '  <div class="ai-quant-title">◆ AI 量化 · 配对交易'
-        '<span>跨域组合 · 两标的</span></div>\n'
+        '<span>跨域组合 · 对冲策略</span></div>\n'
         '  <ul class="ai-quant-list">\n'
         f'    <li><strong>策略：</strong>{_esc(rec["strategy_name"])}'
         f'（{_esc(rec["family"])} · {_esc(rec["method"])} · 跨域）</li>\n'
@@ -684,7 +684,7 @@ def render_wechat(rec, compact=False, note='', show_rule=False):
     return (
         f'<div style="{_WX_BOX}">'
         f'<div style="{_WX_TITLE}">◆ AI 量化 · 配对交易'
-        f'<span style="{_WX_CHIP}">跨域组合 · 两标的</span></div>'
+        f'<span style="{_WX_CHIP}">跨域组合 · 对冲策略</span></div>'
         f'◦ <strong>策略：</strong>{_esc(rec["strategy_name"])}'
         f'（{_esc(rec["family"])} · {_esc(rec["method"])} · 跨域）<br/>'
         f'◦ <strong>跨域组合：</strong>{_esc(rec.get("domain_pair", ""))} · '
