@@ -937,6 +937,13 @@ def build_single_wechat_html(now=None):
         + '；跨平台配置答案延续「进攻端看算力与硬科技、防御端看高息与公用事业」的框架，'
           '具体点位与仓位以当日行情快照为准。')
 
+    community_overview_html = (
+        f'<div style="background:#0d1426;border:1px solid #2b3855;border-left:3px solid {WECHAT_CYAN};'
+        'border-radius:4px;padding:10px 12px;margin:0 0 16px;font-size:12px;line-height:1.85;">'
+        f'<strong style="color:#edf2ff;font-size:13px;">AI 多空总览统计</strong> — 综合 {len(communities)} 个境内外核心社区信号：<br/>'
+        + community_overview_line + '</div>'
+    )
+
     html = f'''<div style="background:{WECHAT_BG};color:{WECHAT_TEXT};font-family:'黑体','SimHei','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC',sans-serif;font-size:12px;line-height:1.85;padding:16px 12px;">
 
   <!-- 顶部电竞 HUD 标题 -->
@@ -945,6 +952,8 @@ def build_single_wechat_html(now=None):
     <div style="color:{WECHAT_TEXT};font-family:'Rajdhani','Noto Sans SC','Microsoft YaHei',sans-serif;font-size:22px;font-weight:700;letter-spacing:1px;line-height:1.35;">{TITLE}</div>
     <div style="color:{WECHAT_TEXT_SOFT};font-size:13px;margin-top:6px;font-family:'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;">全网 AI 调研境内境外数据 · 多模型混合部署 · 将市场信号编译为可执行战术</div>
   </div>
+
+  {community_overview_html}
 
   {h('01 / 每日全球全景扫描 (Daily Global Panorama Scan · 5 大推动力量 · 每次构建现算)')}
   {panorama_block}
@@ -955,8 +964,6 @@ def build_single_wechat_html(now=None):
 
   {h(f'03 / 社区论坛热评 ({len(communities)} 大平台详尽深入全景研判 · 每日动态抓取 · 含跨域配对)')}
   {box(
-    f'<strong style="color:#edf2ff;font-size:13px;">AI 多空总览统计</strong> — 综合 {len(communities)} 个境内外核心社区信号：<br/>' +
-    community_overview_line + '<br/>' +
     '<strong style="color:#edf2ff;">核心主线共识</strong>：' + community_thread_line + '<br/>' +
     f'<span style="color:#9aa6c3;font-size:10px;">社区抓取日期 {_community_fetch_date} · {community_fetch_status()} · {len(communities)} 源动态抓取已上线（中英文 / 不同类型），每次构建自动刷新</span>'
     + quant_pair.render_wechat(quant_pair.recommend(community_thread_line, _quotes, hint='hk_tape')) + fig_community)}
