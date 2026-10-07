@@ -1,60 +1,70 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-章鱼 AI·全景分析（量化策略多因子分析） — 34 大社区动态抓取 (community_data.py)
+章鱼 AI·全景分析（量化策略多因子分析） — 49 大社区动态抓取 (community_data.py)
 
-每次构建/推送前自动抓取 34 大社区最新研判（14 个原有 + 本次新增 20 个），
+每次构建/推送前自动抓取 **49 大社区**最新研判（14 原有 + 20 前次新增 + 15 本次扩容），
 生成 community_data.json，供 build_site.py 与 tools/wechat_push.py 动态注入，
-实现「34 源动态抓取真正上线」：
+实现「49 源动态抓取真正上线」：
 
   • 原有 14 源：富途牛牛社区 / 雪球网 / 老虎社区 / 东方财富港股股吧
     / 智通财经互动区 / 华尔街见闻社区 / 香港讨论区财经版 / LIHKG 连登财经台
     / 韭圈儿 / 红岸社区 / 蚂蚁财富港股社区 / Reddit (r/ChinaStocks)
     / TradingView 香港板块 / Value Investors Club / Twitter / X (FinTwit)
-  • 新增 20 源（中英文、不同类型）：知乎 / 微博财经超话 / 百度贴吧股票吧 / 淘股吧
+  • 前次新增 20 源（中英文、不同类型）：知乎 / 微博财经超话 / 百度贴吧股票吧 / 淘股吧
     / 同花顺社区 / 格隆汇港股圈 / 财联社电报 / 第一财经 / Bilibili 财经区 / PTT Stock 板
     / StockTwits / Seeking Alpha / Bogleheads / r/investing / Wall Street Oasis
     / Investing.com 讨论区 / Yahoo Finance 社区 / Substack 财经通讯 / r/options
     / FT Alphaville
+  • 本次扩容 15 源（35–49，补齐低风险 / 社交 / 短视频 / 量化 / 外汇 / 数字资产 / 日韩德 / 本地财经）：
+    集思录低风险社区 / 小红书理财笔记 / 抖音财经短视频 / 开盘啦情绪复盘 / 理想论坛实战
+    / QuantNet 量化社区 / Elite Trader / Forex Factory / Reddit (r/CryptoCurrency)
+    / Morningstar 社区 / MarketWatch 社区 / 日本 Yahoo! 财经掲示板 / 네이버 금융 종토방
+    / Wallstreet-Online 德语社区 / 阿斯达克财经讨论区
 
   每条社区都带 ctype（社区类型：问答 / 社交 / 论坛 / 研究 / 快讯 / 媒体 / 视频 /
-  机构 / 订阅研究 / 衍生品 / 行情 …），便于核对「不同类型」的覆盖面。
+  机构 / 订阅研究 / 衍生品 / 行情 / 低风险 / 短视频 / 量化 / 外汇 / 数字资产 / 日韩德 …），
+  便于核对「不同类型」的覆盖面。
 
-抓取策略（按优先级）：
-  1. 尝试 HTTP GET 社区首页/热门页，提取文本片段作为“活数据”佐证
-  2. 结合 market_data.json 的最新行情（HSI、恒科、黄金等）与抓取日期，动态生成研判
-  3. 单源失败不阻断 — 失败项自动降级为基于行情的模板生成，保证 34 源永远齐全
+抓取策略（Scrapling 框架模型，见 scrapling_core.py / community_spider.py）：
+  1. community_spider.CommunitySpider 用 Spider/CrawlerEngine 并发抓取 49 源：
+     Scheduler 指纹去重 + AutoThrottle 每域自适应限速 + 封锁状态码重试 + 可选 robots.txt；
+  2. 每源用 CSS 候选选择器抽取标题与正文块；失配时用 SQLite 里的**元素指纹自适应回捞**
+     （站点改版也能定位同一块「最新热评」）；再无命中则在整页按港股关键词打分取最相关片段；
+  3. 结合 market_data.json 的最新行情（HSI、恒科、黄金等）与抓取日期，动态生成研判；
+  4. 单源失败不阻断 — 失败项自动降级为基于行情的模板生成，保证 49 源永远齐全。
 
 设计原则：
-  • 纯标准库（urllib），CI 开箱即用，无需 pip install
+  • 纯标准库（urllib + html.parser + sqlite3），CI 开箱即用，无需 pip install
   • 每次运行生成全新内容，正文中的日期永远是当天，杜绝“8 月 12 日”旧数据残留
   • 单源失败记录在 summary.failed，但仍生成 fallback 内容，保证构建与推送永不中断
-  • offline_dataset() 给下游（微信推送）一份同构的 34 条兜底数据：
+  • offline_dataset() 给下游（微信推送）一份同构的 49 条兜底数据：
     缺 community_data.json 时也只降级 source 标记，不降级源数量与结构
 
 用法:
-  python3 market_data.py && python3 community_data.py         # 联网抓取 → community_data.json
+  python3 market_data.py && python3 community_data.py         # 联网抓取 49 源 → community_data.json
+  python3 community_data.py --limit 5 --timeout 8              # 只抓前 5 源（联调）
+  python3 community_data.py --robots --crawl-dir .crawl        # 遵从 robots.txt + 断点续爬
   python3 community_data.py --demo                             # 写入模拟社区数据（本地联调）
   python3 community_data.py --offline                          # 断网兜底：基于旧数据刷新时间戳
-  python3 community_data.py --json out.json --timeout 10
 """
 import argparse
 import json
 import os
 import re
 import sys
-import time
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
+
+import scrapling_core as sc
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 MARKET_DATA_DEFAULT = os.path.join(REPO_ROOT, 'market_data.json')
 
+# 抓取引擎（Scrapling 框架模型移植）：community_spider 在函数内导入，避免与社区目录形成导入环
+ADAPTIVE_DB_DEFAULT = os.path.join(REPO_ROOT, '.scrapling', 'community_adaptive.db')
+
 UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/126.0 Safari/537.36')
 
-# 34 大社区定义（14 原有 + 20 新增：中英文 / 不同类型）
+# 49 大社区定义（14 原有 + 20 前次新增 + 15 本次扩容：中英文 / 多语种 / 不同类型）
 COMMUNITIES = [
     {
         "id": "01",
@@ -431,27 +441,188 @@ COMMUNITIES = [
         "verdict_class": "neutral",
         "meta_tpl": "综合站内 10 篇市场结构评论",
     },
+    # ---------------- 本次扩容的 15 个社区（35–49 · 低风险 / 社交 / 短视频 / 量化 / 外汇 / 数字资产 / 日韩德 / 本地财经） ----------------
+    {
+        "id": "35",
+        "key": "JISILU",
+        "name": "集思录 · 低风险投资社区",
+        "icon": "🧊",
+        "ctype": "中文低风险投资社区",
+        "url": "https://www.jisilu.cn",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条可转债与套利讨论",
+    },
+    {
+        "id": "36",
+        "key": "XIAOHONGSHU",
+        "name": "小红书 · 理财笔记",
+        "icon": "📕",
+        "ctype": "中文种草社交社区",
+        "url": "https://www.xiaohongshu.com/explore",
+        "verdict_label": "多空分歧",
+        "verdict_class": "mixed",
+        "meta_tpl": "综合站内 10 条理财笔记与评论",
+    },
+    {
+        "id": "37",
+        "key": "DOUYIN",
+        "name": "抖音 · 财经短视频",
+        "icon": "🎵",
+        "ctype": "中文短视频社区",
+        "url": "https://www.douyin.com/search/%E6%B8%AF%E8%82%A1",
+        "verdict_label": "多空分歧",
+        "verdict_class": "mixed",
+        "meta_tpl": "综合站内 10 条财经短视频与热评",
+    },
+    {
+        "id": "38",
+        "key": "KAIPANLA",
+        "name": "开盘啦 · 情绪复盘",
+        "icon": "🚀",
+        "ctype": "中文短线情绪社区",
+        "url": "https://www.kaipanla.com",
+        "verdict_label": "偏空",
+        "verdict_class": "bear",
+        "meta_tpl": "综合站内 10 条情绪周期复盘",
+    },
+    {
+        "id": "39",
+        "key": "LIXIANG",
+        "name": "理想论坛 · 股票实战",
+        "icon": "🧭",
+        "ctype": "中文实战论坛",
+        "url": "https://www.55188.com",
+        "verdict_label": "偏空",
+        "verdict_class": "bear",
+        "meta_tpl": "综合站内 10 条实盘复盘帖",
+    },
+    {
+        "id": "40",
+        "key": "QUANTNET",
+        "name": "QuantNet · 量化社区",
+        "icon": "📐",
+        "ctype": "英文量化社区",
+        "url": "https://quantnet.com",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条因子与择时讨论",
+    },
+    {
+        "id": "41",
+        "key": "ELITETRADER",
+        "name": "Elite Trader",
+        "icon": "🎓",
+        "ctype": "英文交易员论坛",
+        "url": "https://www.elitetrader.com/et/",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条执行与滑点讨论",
+    },
+    {
+        "id": "42",
+        "key": "FOREXFACTORY",
+        "name": "Forex Factory",
+        "icon": "💱",
+        "ctype": "英文外汇社区",
+        "url": "https://www.forexfactory.com/forum",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条汇率与利率讨论",
+    },
+    {
+        "id": "43",
+        "key": "RCRYPTO",
+        "name": "Reddit (r/CryptoCurrency)",
+        "icon": "🪙",
+        "ctype": "数字资产论坛",
+        "url": "https://www.reddit.com/r/CryptoCurrency/",
+        "verdict_label": "偏空",
+        "verdict_class": "bear",
+        "meta_tpl": "综合站内 10 条风险资产联动讨论",
+    },
+    {
+        "id": "44",
+        "key": "MORNINGSTAR",
+        "name": "Morningstar · 社区",
+        "icon": "🌅",
+        "ctype": "英文基金研究社区",
+        "url": "https://community.morningstar.com",
+        "verdict_label": "偏多",
+        "verdict_class": "bull",
+        "meta_tpl": "综合站内 10 条基金费率与配置讨论",
+    },
+    {
+        "id": "45",
+        "key": "MARKETWATCH",
+        "name": "MarketWatch · 社区",
+        "icon": "🗽",
+        "ctype": "英文财经媒体社区",
+        "url": "https://www.marketwatch.com/latest-news",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条报道与读者评论",
+    },
+    {
+        "id": "46",
+        "key": "YAHOOJP",
+        "name": "日本 Yahoo! 财经掲示板",
+        "icon": "🗾",
+        "ctype": "日文社区",
+        "url": "https://finance.yahoo.co.jp/quote/998407.O",
+        "verdict_label": "偏空",
+        "verdict_class": "bear",
+        "meta_tpl": "综合站内 10 条日文讨论",
+    },
+    {
+        "id": "47",
+        "key": "NAVER",
+        "name": "네이버 금융 종토방",
+        "icon": "🇰🇷",
+        "ctype": "韩文社区",
+        "url": "https://finance.naver.com/item/board.naver?code=005930",
+        "verdict_label": "多空分歧",
+        "verdict_class": "mixed",
+        "meta_tpl": "综合站内 10 条韩文讨论",
+    },
+    {
+        "id": "48",
+        "key": "WALLSTREETDE",
+        "name": "Wallstreet-Online · 德语社区",
+        "icon": "🇩🇪",
+        "ctype": "德文社区",
+        "url": "https://www.wallstreet-online.de/community/forum",
+        "verdict_label": "中性",
+        "verdict_class": "neutral",
+        "meta_tpl": "综合站内 10 条德文讨论",
+    },
+    {
+        "id": "49",
+        "key": "AASTOCKS",
+        "name": "阿斯达克财经 · 讨论区",
+        "icon": "🇭🇰",
+        "ctype": "香港本地财经社区",
+        "url": "http://www.aastocks.com/tc/stocks/comment/latest.aspx",
+        "verdict_label": "偏多",
+        "verdict_class": "bull",
+        "meta_tpl": "综合站内 10 条本地财经讨论",
+    },
 ]
 
-def http_get(url, timeout=10):
-    req = urllib.request.Request(url, headers={
-        'User-Agent': UA,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read()
-        # 尝试解码
-        try:
-            return raw.decode('utf-8', errors='replace')
-        except:
-            return raw.decode('gbk', errors='replace')
+def http_get(url, timeout=10, retries=2, session=None):
+    """单源抓取（Scrapling Fetcher 语义：浏览器请求头 + 重试 + 编码识别）。
+
+    保留这个函数是为了兼容旧调用点；批量抓取走 community_spider.CommunitySpider，
+    那样才有并发、每域限速、封锁重试与自适应回捞。
+    """
+    fetcher = session or sc.Fetcher.session()
+    response = fetcher.get(url, timeout=timeout, retries=retries)
+    return response.text
 
 def strip_html(html, max_len=500):
-    # 去标签，取纯文本片段
-    text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.S | re.I)
-    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.S | re.I)
-    text = re.sub(r'<[^>]+>', ' ', text)
+    """HTML → 纯文本片段（Scrapling Convertor：先洗噪音/隐藏内容，再取全部文本）。"""
+    page = sc.Convertor.sanitize_for_ai(sc.Convertor.strip_noise_tags(sc.Selector(html or '')))
+    text = page.get_all_text(separator=' ', strip=True)
     text = re.sub(r'\s+', ' ', text).strip()
     return text[:max_len]
 
@@ -522,14 +693,14 @@ def generate_dynamic_quote(community, hsi, fetch_date, fetch_date_cn, live_snipp
     live_hint = ""
     if live_snippet:
         # 取前 30 字作为“现场”佐证，避免过长
-        snippet_short = live_snippet[:40].strip()  # 34 源共用一页，现场片段长度也纳入字符预算
+        snippet_short = live_snippet[:40].strip()  # 49 源共用一页，现场片段长度也纳入字符预算
         if snippet_short:
             live_hint = f"（现场抓取片段：{snippet_short}…）"
 
     key = community['key']
     name = community['name']
 
-    # 34 个社区差异化模板，全部带当天日期
+    # 49 个社区差异化模板，全部带当天日期
     templates = {
         "FUTU": f"平台深度热评：{month} 月 {day} 日恒指{action} {pct_s}，收报 {last} 点，{short_desc}。技术派指出 26,000 整数关仍是强阻力，30 分钟级别需等待金叉才重新进场；资金派紧盯分时大单与南向净流向，强调“先看异动再做决策”——当日盘口反馈远快于叙事。{live_hint} 中长线声音则认为：即便回踩 25,200–25,400 箱体下沿，南向资金近期维持净流入，叠加盈利修复，明年上半年挑战 28,200 点的路径未被破坏。",
         "XUEQIU": f"热帖直指“恒指 26,000 关口压力重重，本轮是反弹还是反转”。{month} 月 {day} 日恒指{action} {pct_s} 报 {last}，恒科同步 {short_desc}。球友对半导体“空头撤退股价仍跌”解读为被动出清而非新一轮做空；美债 10 年期约 4.67% 仍压制高估值成长，资金在光通信 / 芯片与红利、内房之间高速轮动。价值派强调：南向资金今年多数月份持续流入，盈利 3%–4% 内生增长与机构基准目标位仍成立（最新目标价以 02 栏当次快讯为准），主张高息底仓 + 新质生产力，拒绝在 26,000 附近追高。{live_hint}",
@@ -565,6 +736,21 @@ def generate_dynamic_quote(community, hsi, fetch_date, fetch_date_cn, live_snipp
         "SUBSTACK": f"订阅制通讯：{month} 月 {day} 日恒指{action} {pct_s}，作者把焦点放在流动性与财政节奏上，认为 {short_desc}；对港股的建议多为「结构性参与而非指数押注」。{live_hint}",
         "ROPTIONS": f"期权社区：{month} 月 {day} 日恒指{action} {pct_s}，讨论集中在波动率定价与对冲成本；{short_desc}，多数人选择卖出波动率或做保护性价差，而非方向性押注。{live_hint}",
         "FTALPHA": f"市场结构评论：{month} 月 {day} 日恒指{action} {pct_s}，评论强调南向资金与指数编制的结构性影响，{short_desc}；作者提醒单日点位噪音大，应看资金与流动性趋势。{live_hint}",
+        "JISILU": f"低风险视角：{month} 月 {day} 日恒指{action} {pct_s} 报 {last} 点，可转债与港股打新的讨论热度回升，集友更关心「下有保底」的标的还剩多少折价；{short_desc}，仓位更多留给确定性更高的套利与红利票据。{live_hint}",
+        "XIAOHONGSHU": f"理财笔记区：{month} 月 {day} 日恒指{action} {pct_s}，笔记从「定投打卡」转向「要不要止盈」，评论区情绪随盘面波动；年轻资金偏好港股 ETF 与高息红利组合，收藏与 @ 数据反映出对确定性的偏好上升。{short_desc}。{live_hint}",
+        "DOUYIN": f"财经短视频：{month} 月 {day} 日恒指{action} {pct_s} 收 {last}，直播间话题围绕「26,000 关口能不能破」，短视频情绪明显快于图文社区；{short_desc}，主播普遍提示不要追高、控制杠杆。{live_hint}",
+        "KAIPANLA": f"短线情绪复盘：{month} 月 {day} 日恒指{action} {pct_s}，情绪周期显示连板高度与炸板率同步走高，港股通标的的资金抢筹与砸盘切换频繁；{short_desc}，次日重点看反包与承接强度。{live_hint}",
+        "LIXIANG": f"实战复盘帖：{month} 月 {day} 日恒指{action} {pct_s} 收 {last}，论坛主流打法仍是箱体高抛低吸，强调「不满仓、不补跌」；{short_desc}，实盘贴仓位整体偏低，等量能确认再动手。{live_hint}",
+        "QUANTNET": f"量化社区：{month} 月 {day} 日恒指{action} {pct_s}，讨论集中在港股流动性因子与波动率择时模型的样本外表现；{short_desc}，多数帖子主张用风险平价而非方向性押注表达观点。{live_hint}",
+        "ELITETRADER": f"交易员论坛：{month} 月 {day} 日恒指{action} {pct_s} 报 {last}，日内交易者盯恒指期货与夜盘价差，讨论重点落在滑点与执行成本；{short_desc}，多数人维持小仓位试单。{live_hint}",
+        "FOREXFACTORY": f"外汇社区：{month} 月 {day} 日离岸人民币与美元指数仍是焦点，恒指{action} {pct_s}；交易员把人民币中间价与美元利率路径当作港股风险偏好的先行指标，{short_desc}。{live_hint}",
+        "RCRYPTO": f"数字资产社区：{month} 月 {day} 日恒指{action} {pct_s}，讨论把比特币与港股科技同归为高贝塔风险资产，关注联动性与流动性外溢；{short_desc}，仓位普遍偏防守。{live_hint}",
+        "MORNINGSTAR": f"基金研究社区：{month} 月 {day} 日恒指{action} {pct_s} 报 {last}，讨论聚焦香港股票型基金的费率、折溢价与长期回报；{short_desc}，分析师口径仍偏好估值偏低的亚洲配置。{live_hint}",
+        "MARKETWATCH": f"报道评论区：{month} 月 {day} 日恒指{action} {pct_s}，英文读者更关注中国资产估值与国际资金回流节奏；{short_desc}，评论区对政策落地速度的分歧明显。{live_hint}",
+        "YAHOOJP": f"日文掲示板：{month} 月 {day} 日恒指{action} {pct_s} 收 {last}，日本投资者把港股与恒生国企指数当作观察中国资产的窗口；{short_desc}，日元套利资金的流向被反复讨论。{live_hint}",
+        "NAVER": f"韩文社区：{month} 月 {day} 日恒指{action} {pct_s}，韩国散户对照 KOSPI 与半导体周期讨论恒科成分股；{short_desc}，半导体与二次电池的资金轮动被当作情绪风向标。{live_hint}",
+        "WALLSTREETDE": f"德文社区：{month} 月 {day} 日恒指{action} {pct_s} 报 {last}，欧洲投资者从欧元汇率与中国出口数据两条线切入港股；{short_desc}，主流建议维持低配、等盈利确认。{live_hint}",
+        "AASTOCKS": f"本地财经讨论区：{month} 月 {day} 日恒指{action} {pct_s}，网友紧盯北水净流入与新股招股反应；{short_desc}，本地资金偏好高息蓝筹与公用股，对指数突破的预期不高。{live_hint}",
     }
     return templates.get(key, f"{month} 月 {day} 日 {name}热评：恒指{action} {pct_s} 收 {last}，{short_desc}。{live_hint} 南向资金与盈利修复仍是中期托底逻辑，箱体震荡中更适合结构性机会而非追高。")
 
@@ -628,6 +814,21 @@ def generate_quant_metrics(community, hsi, live_snippet, source, fetch_date):
         "SUBSTACK": "宏观",
         "ROPTIONS": "技术面",
         "FTALPHA": "监管",
+        "JISILU": "资金流向",
+        "XIAOHONGSHU": "情绪面",
+        "DOUYIN": "情绪面",
+        "KAIPANLA": "技术面",
+        "LIXIANG": "技术面",
+        "QUANTNET": "综合",
+        "ELITETRADER": "技术面",
+        "FOREXFACTORY": "宏观",
+        "RCRYPTO": "宏观",
+        "MORNINGSTAR": "业绩",
+        "MARKETWATCH": "宏观",
+        "YAHOOJP": "宏观",
+        "NAVER": "业绩",
+        "WALLSTREETDE": "监管",
+        "AASTOCKS": "资金流向",
     }
     # 根据 snippet 关键词二次修正
     snippet_lower = (live_snippet or "").lower()
@@ -655,6 +856,10 @@ def generate_quant_metrics(community, hsi, live_snippet, source, fetch_date):
         "STOCKTWITS": 69, "SEEKINGALPHA": 80, "BOGLEHEADS": 58, "RINVESTING": 71,
         "WSO": 67, "INVESTING": 76, "YAHOO": 78, "SUBSTACK": 75, "ROPTIONS": 72,
         "FTALPHA": 77,
+        "JISILU": 74, "XIAOHONGSHU": 63, "DOUYIN": 66, "KAIPANLA": 77, "LIXIANG": 73,
+        "QUANTNET": 71, "ELITETRADER": 68, "FOREXFACTORY": 70, "RCRYPTO": 62,
+        "MORNINGSTAR": 76, "MARKETWATCH": 79, "YAHOOJP": 69, "NAVER": 72,
+        "WALLSTREETDE": 66, "AASTOCKS": 85,
     }.get(key, 75)
     relevance_score = relevance_base + (h % 11) - 5  # ±5 波动
     relevance_score = max(45, min(98, relevance_score))
@@ -738,14 +943,29 @@ def generate_verdict(community, hsi, fetch_date_cn):
         "SUBSTACK": "多空分歧。宏观通讯强调流动性节奏，建议结构性参与而非指数押注。",
         "ROPTIONS": "偏空 (波动率视角)。对冲成本与波动率定价显示市场在为下行买保险。",
         "FTALPHA": "中性。结构性评论提醒单日点位噪音大，应跟踪资金与流动性趋势。",
+        "JISILU": "中性偏防守 (低风险口径)。可转债与套利策略的性价比仍高于方向性做多；箱体震荡中先守住回撤，而不是去猜指数方向。",
+        "XIAOHONGSHU": "多空分歧。年轻资金的定投叙事与止盈焦虑并存，热度高但一致性差，指数层面给不出方向。",
+        "DOUYIN": "多空分歧。短视频情绪放大波动，主播口径普遍「不追高、控仓位」，属于典型情绪噪音区。",
+        "KAIPANLA": "偏空 (短线情绪口径)。连板与炸板同步走高说明承接不稳，次日先看反包强度，不参与高位接力。",
+        "LIXIANG": "偏空。实盘仓位整体偏低，量能不足前反弹更像修复而非反转，严格执行止损优于方向判断。",
+        "QUANTNET": "中性。量化口径看，港股流动性与波动率因子暂无稳定择时信号，建议用风险平价表达观点。",
+        "ELITETRADER": "中性。日内交易者只赚波动不赌方向，执行成本与滑点比趋势判断更关键。",
+        "FOREXFACTORY": "中性。人民币与美元利率路径未给出明确方向，港股风险偏好缺少外汇端的确认信号。",
+        "RCRYPTO": "偏空 (风险偏好口径)。高贝塔资产同步承压，数字资产的流动性外溢尚未转向港股。",
+        "MORNINGSTAR": "偏多 (长期配置口径)。估值与费率结构对长期持有人有利，适合定投而非择时。",
+        "MARKETWATCH": "中性。英文读者的分歧点在于政策落地速度，指数缺少一致性预期。",
+        "YAHOOJP": "偏空。日元套利资金流向不明，日本投资者对中国资产维持观察而非加仓。",
+        "NAVER": "多空分歧。半导体与二次电池的轮动节奏与恒科并不同步，韩方资金对港股仍以观望为主。",
+        "WALLSTREETDE": "中性。欧洲资金维持低配，等盈利确认与欧元汇率稳定后再谈加仓。",
+        "AASTOCKS": "偏多 (本地资金口径)。北水持续净流入与高息蓝筹的防守属性支撑本地情绪，但对指数突破的预期不高。",
     }
     return base_verdicts.get(community['key'], f"{label}。{fetch_date_cn}行情 {hsi['last']}（{hsi['pct']}），箱体震荡中维持原有配置，等待右侧信号。")
 
 def offline_dataset(market=None, now=None, mode='fallback'):
-    """无抓取兜底数据集：与 live 同构的 34 条记录（含量化指标与当天日期）。
+    """无抓取兜底数据集：与 live 同构的 49 条记录（含量化指标与当天日期）。
 
     供 tools/wechat_push.py 等在缺 community_data.json 时调用 —— 兜底只降级
-    source 标记（fallback），**不降级源数量、不降级结构**，保证「34 源永远齐全」，
+    source 标记（fallback），**不降级源数量、不降级结构**，保证「49 源永远齐全」，
     且正文日期永远是当天，杜绝旧内容从模板里漏出。
     """
     now = now or datetime.now(timezone.utc)
@@ -785,18 +1005,29 @@ def offline_dataset(market=None, now=None, mode='fallback'):
         "hsi_snapshot": hsi,
         "communities": records,
         "summary": {"ok": len(records), "total": len(COMMUNITIES), "failed": []},
+        "fetch_engine": {"engine": sc.ENGINE_NAME, "backend": "offline",
+                         "sources": len(COMMUNITIES), "adaptive_hits": 0},
         "notes": [
             "无抓取兜底：结构与 live 完全一致，仅 source 标记为 fallback",
-            "34 源齐全，正文日期为当天，不向模板回填历史叙事",
+            "49 源齐全，正文日期为当天，不向模板回填历史叙事",
         ],
     }
 
 
 def main():
-    ap = argparse.ArgumentParser(description='章鱼 AI·全景分析（量化策略多因子分析） — 34 大社区动态抓取')
+    ap = argparse.ArgumentParser(description='章鱼 AI·全景分析（量化策略多因子分析） — 49 大社区动态抓取')
     ap.add_argument('--json', default='community_data.json', help='输出 JSON 路径')
     ap.add_argument('--market-data', default=MARKET_DATA_DEFAULT, help='行情数据 JSON 路径')
-    ap.add_argument('--timeout', type=int, default=10, help='单次请求超时秒数')
+    ap.add_argument('--timeout', type=float, default=10, help='单次请求超时秒数')
+    ap.add_argument('--retries', type=int, default=2, help='单源重试次数（Scrapling Fetcher 语义）')
+    ap.add_argument('--concurrency', type=int, default=6, help='并发抓取源数（Spider 线程池）')
+    ap.add_argument('--limit', type=int, default=0, help='只抓前 N 个源（联调用）')
+    ap.add_argument('--adaptive-db', default=ADAPTIVE_DB_DEFAULT, help='元素指纹库（自适应回捞）路径')
+    ap.add_argument('--no-adaptive', action='store_true', help='关闭自适应指纹回捞')
+    ap.add_argument('--robots', action='store_true', help='遵从 robots.txt（含 crawl-delay）')
+    ap.add_argument('--crawl-dir', default='', help='开启断点续爬：checkpoint 落盘目录')
+    ap.add_argument('--backend', default='auto', choices=('auto', 'port', 'scrapling'),
+                    help='传输层：auto=装了 scrapling 包就用真包，否则用标准库移植层')
     ap.add_argument('--demo', action='store_true', help='写入模拟社区数据（本地联调/演示）')
     ap.add_argument('--offline', action='store_true', help='断网兜底：基于旧数据刷新时间戳')
     args = ap.parse_args()
@@ -828,6 +1059,7 @@ def main():
 
     communities_out = []
     failed = []
+    fetch_engine = None
 
     def build_record(comm, quote, verdict, quant, source):
         """把一条社区抓取结果整理成下游（网页/微信）共用的记录结构。"""
@@ -859,29 +1091,40 @@ def main():
             communities_out.append(build_record(comm, quote, verdict, quant, source))
         mode = "demo"
     else:
+        # ---------- 走 Scrapling 框架模型抓取 49 源（并发 + 每域限速 + 自适应回捞 + 封锁重试） ----------
         mode = "live"
+        import community_spider as spider_mod          # 局部导入：避免与社区目录形成导入环
+        sources = COMMUNITIES[:args.limit] if args.limit else COMMUNITIES
+        results, spider_stats = spider_mod.fetch_live_snippets(
+            sources, timeout=args.timeout, retries=args.retries, concurrency=args.concurrency,
+            adaptive=not args.no_adaptive, storage_file=args.adaptive_db,
+            obey_robots=args.robots, crawldir=args.crawl_dir or None, backend=args.backend)
+        fetch_engine = spider_stats
+
         for comm in COMMUNITIES:
-            live_snippet = ""
-            source = "fallback"
-            try:
-                html = http_get(comm["url"], timeout=args.timeout)
-                if html:
-                    live_snippet = strip_html(html, 300)
-                    source = "live"
-                    print(f'  ✅ {comm["name"]: <12} live  抓取 {len(html)} 字节')
-                else:
-                    print(f'  ⚠️ {comm["name"]: <12} 空响应，降级为模板')
-            except Exception as e:
-                print(f'  ⚠️ {comm["name"]: <12} 抓取失败({e})，降级为模板', file=sys.stderr)
+            hit = results.get(comm["key"]) or {}
+            live_snippet = (hit.get("snippet") or "")[:300]
+            source = "live" if (hit.get("ok") and live_snippet) else "fallback"
+            if source == "live":
+                tail = " · 自适应回捞" if hit.get("adaptive") else ""
+                print(f'  ✅ {comm["name"]: <18} live  HTTP {hit.get("status")} · '
+                      f'{hit.get("bytes", 0)} 字节 · 选择器 {hit.get("selector") or "—"}{tail}')
+            else:
+                reason = hit.get("error") or (f'HTTP {hit.get("status")}' if hit.get("status") else '无响应')
+                print(f'  ⚠️ {comm["name"]: <18} 抓取失败({reason})，降级为模板', file=sys.stderr)
                 failed.append(comm["name"])
-                source = "fallback"
 
             quote = generate_dynamic_quote(comm, hsi, fetch_date, fetch_date_cn, live_snippet=live_snippet, mode=mode)
             verdict = generate_verdict(comm, hsi, fetch_date_cn)
             quant = generate_quant_metrics(comm, hsi, live_snippet, source, fetch_date)
 
             communities_out.append(build_record(comm, quote, verdict, quant, source))
-            time.sleep(0.15)
+
+        ok_count = sum(1 for c in communities_out if c['source'] == 'live')
+        print(f'🕷️ 抓取引擎 {spider_stats.get("engine")} · 传输层 {spider_stats.get("backend")} · '
+              f'{ok_count}/{len(COMMUNITIES)} 源取到活数据 · 自适应回捞 {spider_stats.get("adaptive_hits", 0)} 次 · '
+              f'封禁拦截 {spider_stats.get("blocked_requests_count", 0)} 次 · '
+              f'耗时 {spider_stats.get("elapsed", 0)}s')
 
     data = {
         "generated_at": now_full,
@@ -895,9 +1138,11 @@ def main():
             "total": len(COMMUNITIES),
             "failed": failed,
         },
+        "fetch_engine": fetch_engine or {"engine": sc.ENGINE_NAME, "backend": "demo",
+                                         "sources": len(COMMUNITIES)},
         "notes": [
-            "由 community_data.py 构建时自动抓取 (HTTP GET + 模板回退)",
-            "单源失败降级为基于最新行情的动态模板，保证 34 源永远齐全",
+            f"由 community_data.py 构建时自动抓取（{sc.ENGINE_NAME} + 动态模板回退）",
+            "单源失败降级为基于最新行情的动态模板，保证 49 源永远齐全",
             "正文日期永远为当天，杜绝旧数据残留",
         ]
     }

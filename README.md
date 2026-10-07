@@ -4,22 +4,23 @@
 
 ## 🔄 动态抓取真正上线 — 行情+社区双动态 (每次构建/推送自动更新)
 
-每次 push、手动触发或每天 09:00 定时任务，都会**先自动抓取最新行情+34 大社区最新研判，再构建报告并推送**，
+每次 push、手动触发或每天 09:00 定时任务，都会**先自动抓取最新行情+49 大社区最新研判，再构建报告并推送**，
 页面与微信收到的永远是当天最新数据，杜绝“8 月 12 日”旧内容残留：
 
 ```bash
 python3 market_data.py               # ① 动态抓取行情 → market_data.json (Yahoo→Stooq回退)
 python3 verify_quotes.py --json verify_report.json --text   # ①′ 全来源交叉校验 (FAIL=2 阻断推送；网页阶段仅公开报告不阻断)
-python3 community_data.py            # ② 动态抓取34社区 → community_data.json (14 原有 + 20 新增；HTTP GET+模板回退，每次刷新当天日期)
+python3 community_data.py            # ② 动态抓取49社区 → community_data.json (14 原有 + 20 前次新增 + 15 本次扩容；
+                                     #    Scrapling 框架模型并发抓取 + 自适应指纹回捞 + 模板回退，每次刷新当天日期)
 python3 macro_data.py                # ②′ 动态抓取宏观/财经快讯 → macro_data.json (网页 02 节 + 微信 02 栏正文；只保留 7 天内、发布日期可解析的条目)
-python3 build_site.py                # ③ 动态建站 → report.html (注入行情+社区+宏观快讯+日期/时间戳，34源动态注入；
+python3 build_site.py                # ③ 动态建站 → report.html (注入行情+社区+宏观快讯+日期/时间戳，49源动态注入；
                                      #    同时现算 04 栏 AI 预测(下一交易日) 并把预测写进 forecast_history.json —— 先存档后结算)
 python3 tools/wechat_push.py --embed # ④ 内嵌最新推送负载进 report.html
 python3 tools/wechat_push.py --push --scheduled   # ⑤ 推送完整报告到微信
 ```
 
 - **行情源**：Yahoo Finance chart API → Stooq CSV 多源自动回退（纯标准库，CI 无需安装依赖）。
-- **社区源（本次 14 → 34）**：**34 大社区** —— 原有 14 源（富途牛牛 / 雪球 / 老虎 / 东方财富 / 智通财经 / 华尔街见闻 / 香港讨论区 / LIHKG / 韭圈儿 / 蚂蚁财富 / Reddit / TradingView / VIC / FinTwit）＋ 本次新增 20 源（知乎 / 微博财经 / 百度贴吧股票吧 / 淘股吧 / 同花顺 / 格隆汇 / 财联社 / 第一财经 / Bilibili 财经区 / PTT Stock 板 / StockTwits / Seeking Alpha / Bogleheads / r/investing / Wall Street Oasis / Investing.com 讨论区 / Yahoo Finance / Substack / r/options / FT Alphaville），覆盖中英文与问答 / 社交 / 论坛 / 研究 / 快讯 / 媒体 / 视频 / 机构 / 衍生品 / 订阅研究等 **30 类社区**。**每次构建均 HTTP GET 尝试抓取**，提取文本片段作为活数据佐证，结合最新行情动态生成研判；单源失败自动降级为基于最新行情的动态模板，**保证 34 源永远齐全**，且**正文日期永远为当天**。
+- **社区源（34 → 49）**：**49 大社区** —— 原有 14 源（富途牛牛 / 雪球 / 老虎 / 东方财富 / 智通财经 / 华尔街见闻 / 香港讨论区 / LIHKG / 韭圈儿 / 蚂蚁财富 / Reddit / TradingView / VIC / FinTwit）＋ 前次新增 20 源（知乎 / 微博财经 / 百度贴吧股票吧 / 淘股吧 / 同花顺 / 格隆汇 / 财联社 / 第一财经 / Bilibili 财经区 / PTT Stock 板 / StockTwits / Seeking Alpha / Bogleheads / r/investing / Wall Street Oasis / Investing.com 讨论区 / Yahoo Finance / Substack / r/options / FT Alphaville）＋ **本次扩容 15 源**（集思录 / 小红书理财笔记 / 抖音财经短视频 / 开盘啦情绪复盘 / 理想论坛实战 / QuantNet / Elite Trader / Forex Factory / r/CryptoCurrency / Morningstar / MarketWatch / 日本 Yahoo! 财经掲示板 / 네이버 금융 종토방 / Wallstreet-Online / 阿斯达克财经讨论区），覆盖中英文与日文 / 韩文 / 德文，以及问答 / 社交 / 论坛 / 研究 / 快讯 / 媒体 / 视频 / 机构 / 衍生品 / 订阅研究 / 低风险 / 短视频 / 量化 / 外汇 / 数字资产 / 本地财经等 **45 类社区**。**每次构建均由 Scrapling 框架模型（`scrapling_core.py` + `community_spider.py`）并发抓取** —— Spider/CrawlerEngine 线程池 + Scheduler 指纹去重 + AutoThrottle 每域限速 + 封锁状态码重试 + 元素指纹自适应回捞，提取文本片段作为活数据佐证，结合最新行情动态生成研判；单源失败自动降级为基于最新行情的动态模板，**保证 49 源永远齐全**，且**正文日期永远为当天**。
 - **覆盖标的**：恒指 / 恒生科技 / 恒生国企 / 标普 500 / 纳斯达克 / 道琼斯 / 现货黄金 / WTI / 布伦特 / 美元离岸与在岸人民币。
 - **失败降级**：单品行情/单社区抓取失败自动降级（行情显示 "—"，社区显示动态模板），并在页面标注，**不阻断构建与推送**，保证 09:00 定时任务永不中断。
 - **02 栏（全球经济与财经动态）已改为快讯驱动**：`macro_data.py` 每次构建现抓 Google News RSS（中/英分主题）+ 美联储官方新闻稿 RSS + 东财财经快讯检索，按「宏观 / 美联储 / 港股 / 大宗商品 / 大行目标价」五类归组后渲染，**每条快讯自带发布日期**；超窗或无日期的条目在数据层就被丢弃（`stale_dropped` / `undated_dropped`）。**修复背景（2026-09-16 核查）**：这一栏原本是写死在 `tools/wechat_push.py` 里的固定文案（IMF 7 月 WEO、7 月 29 日 FOMC、8 月 12 日 CPI、南向 628.69 亿、各行恒指目标价…），构建时原样重播、页脚却盖当天时间戳，导致「生成时间是当天、正文停在 8 月 12 日」；现在抓不到快讯时 02 栏明确显示「今日未获取」+ 实时行情，**绝不回填历史叙事**（回归防线：`tests/test_wechat_push_macro.py` 断言正文不得再出现任何写死的历史事实）。
@@ -30,7 +31,7 @@ python3 tools/wechat_push.py --push --scheduled   # ⑤ 推送完整报告到微
      ⚠️ **补抓只能在 CLI 入口，不能放进渲染函数**（2026-09-17 二次事故）：第一版把 `ensure()` 放在 `tools/wechat_push.py` 的 `load_macro_data()` 里，而它是 `build_single_wechat_html()` 调用的**库函数**、单测会直接调。CI 里 `GITHUB_ACTIONS=true` 默认开补抓 → 单测真的联网抓到了快讯 → `tests/test_panorama.py::test_wechat_section_degrades_when_all_sources_missing` 这类「四路数据全缺必须降级」的断言当场挂掉，合并后 deploy job 的「🧪 舆情层自检」步骤直接红（本地无外网，所以提交前复现不出来）。现在 `load_macro_data()` 是**纯读取**，补抓只在 `bootstrap_macro_data()` 里、由 `main()` 调用；回归防线为 `test_render_path_never_fetches_even_in_ci`（把 `md.build` 换成「一被调用就 AssertionError」的桩件，断言渲染路径永不触发抓取）。
   2. **workflow 里显式的抓取步骤**（待人工应用一次）：三个 job 各加一步 `macro_data.py --json macro_data.json --days 7 --text`（失败不阻断，逐源摘要写入 Step Summary），作为「补抓通路」之外的一手数据源与可观测入口。Agent 的 GitHub App 缺 `workflows` 权限已**实测确认**（`git push` 直接被远端 reject：`refusing to allow a GitHub App to create or update workflow ... without workflows permission`），因此以 `docs/macro-ci-step-only.patch` 交付，在有权限的账号执行 `git apply docs/macro-ci-step-only.patch` 即可（该补丁**只含快讯步骤**，不含 `verify_quotes.py` 门禁）。
 - **`verify_quotes.py` 的推送门禁仍待人工应用**：`#43` 声称但从未生效的部分（Pages 阶段 `|| true` 不阻断 + `verify_report.json` 随站点公开，推送阶段 FAIL 直接阻断）仍以 `docs/macro-ci-workflow.patch` 交付；这次**没有**把它一起接进 workflow —— 当前校验对恒指口径判 FAIL（`python3 verify_quotes.py` 实测 `pass 0 / warn 10 / fail 1`），若直接启用「推送阶段 FAIL 阻断」会把每日 09:00 推送整条掐断，需要先修校验口径再开门禁。
-- **日期联动**：34 大社区「最新读取」日期与正文中的“8 月 X 日”日期均随抓取日自动刷新（`community_data.py` 生成当天日期），推送前日期核对（`--push` 严格 / `--scheduled` 宽松）逻辑保持不变：`EXPECTED_CHANNEL_COUNT = 34`，**34 条标记逐条核对**（缺项或非当天 → 手动推送拒绝、定时推送告警）。
+- **日期联动**：49 大社区「最新读取」日期与正文中的“8 月 X 日”日期均随抓取日自动刷新（`community_data.py` 生成当天日期），推送前日期核对（`--push` 严格 / `--scheduled` 宽松）逻辑保持不变：`EXPECTED_CHANNEL_COUNT = len(community_data.COMMUNITIES)`（= **49**，跟目录走、不再写死数字），**49 条标记逐条核对**（缺项或非当天 → 手动推送拒绝、定时推送告警）。
 - 本地联调可用 `python3 market_data.py --demo && python3 community_data.py --demo` 生成模拟行情+社区。
 
 ## 🌍 01 栏：每日全球全景扫描 (Daily Global Panorama Scan)
@@ -52,7 +53,7 @@ python3 tools/wechat_push.py --push --scheduled   # ⑤ 推送完整报告到微
 | 大宗商品与供应链 | WTI / 布伦特 / 黄金 + 供应链快讯 | 宏观事件 |
 | 机构观点 | 大行目标价与配置建议快讯 | 宏观事件 |
 | 板块轮动 | 恒科−恒指、纳指−道指的成长/价值价差 | 板块轮动 |
-| 情绪变化 | 舆情温度计 + 34 源社区多空家数 | 情绪变化 |
+| 情绪变化 | 舆情温度计 + 49 源社区多空家数 | 情绪变化 |
 
 **② 打分与重点 / 噪音判定（显式规则，可复算）**
 
@@ -226,7 +227,7 @@ python3 -m unittest tests.test_forecast   # 32 项回归
 
 渲染层同步显示域对：网页块 `data-domain-pair="港股 × 美股"` + 「跨域组合：…」，微信块/一行版同样标注；
 `python3 quant_pair.py --self-test` 会逐项检查「每条策略都跨域、组合不重复、tape 兜底也跨域」。
-34 源社区的默认配对也按社区逐一映射（股票 / 论坛 / 研究 / 期权等不同社区落到不同的跨域组合，避免 34 张卡片共用一对）。
+49 源社区的默认配对也按社区逐一映射（股票 / 论坛 / 研究 / 期权等不同社区落到不同的跨域组合，避免 49 张卡片共用一对）。
 
 ### 🔒 行情不足 → 整段隐藏（不铺「数据不足」）
 
@@ -263,11 +264,64 @@ python3 quant_pair.py --self-test
 python3 -m unittest tests.test_quant_pair
 ```
 
-## 🗣️ 34 大社区（14 原有 + 20 新增 · 中英文 / 不同类型）
+## 🗣️ 49 大社区（14 原有 + 20 前次新增 + 15 本次扩容 · 中英文/日韩德 · 45 类社区）
 
-社区层从 14 源扩到 **34 源**，每条记录新增 `ctype`（社区类型）字段，网页与微信同源同结构。
+社区层从 14 源 → 34 源 → **49 源**，每条记录带 `ctype`（社区类型）字段，网页与微信同源同结构；
+抓取侧接入 **Scrapling 框架模型**（`scrapling_core.py` / `community_spider.py`，详见
+[docs/scrapling-framework.md](docs/scrapling-framework.md)）。
 
-### 新增 20 源（编号 15–34）
+### 本次扩容 15 源（编号 35–49）
+
+| # | 社区 | 语言 | 类型（`ctype`） |
+|---|---|---|---|
+| 35 | 集思录 · 低风险投资社区 | 中文 | 中文低风险投资社区 |
+| 36 | 小红书 · 理财笔记 | 中文 | 中文种草社交社区 |
+| 37 | 抖音 · 财经短视频 | 中文 | 中文短视频社区 |
+| 38 | 开盘啦 · 情绪复盘 | 中文 | 中文短线情绪社区 |
+| 39 | 理想论坛 · 股票实战 | 中文 | 中文实战论坛 |
+| 40 | QuantNet · 量化社区 | 英文 | 英文量化社区 |
+| 41 | Elite Trader | 英文 | 英文交易员论坛 |
+| 42 | Forex Factory | 英文 | 英文外汇社区 |
+| 43 | Reddit (r/CryptoCurrency) | 英文 | 数字资产论坛 |
+| 44 | Morningstar · 社区 | 英文 | 英文基金研究社区 |
+| 45 | MarketWatch · 社区 | 英文 | 英文财经媒体社区 |
+| 46 | 日本 Yahoo! 财经掲示板 | 日文 | 日文社区 |
+| 47 | 네이버 금융 종토방 | 韩文 | 韩文社区 |
+| 48 | Wallstreet-Online | 德文 | 德文社区 |
+| 49 | 阿斯达克财经 · 讨论区 | 繁体中文 | 香港本地财经社区 |
+
+### 抓取口径：Scrapling 框架模型（分析 → 移植 → 落地）
+
+上游 [Scrapling](https://github.com/D4Vinci/Scrapling)（BSD-3-Clause，v0.4.15）用
+curl_cffi + lxml + anyio + browserforge + protego 做持久化爬虫；本项目 CI 要求「零 pip 安装」，
+因此把它的**框架模型**逐层移植成纯标准库实现（`scrapling_core.py`，API 名与上游一一对应），
+再由 `community_spider.py` 落到 49 个社区源上：
+
+| Scrapling 上游 | 本项目移植 | 在社区抓取里的作用 |
+|---|---|---|
+| `Fetcher` / `FetcherSession`（engines/static.py） | `FetcherSession` | 真实浏览器请求头、重试 + 退避、重定向历史、编码识别、代理轮换 |
+| `Response`（toolbelt/custom.py） | `Response` | 统一响应体（继承 Selector，直接 `.css()` 解析） |
+| `Selector` + `Selectors`（parser.py） | `Selector` / `Selectors` | CSS 候选规则抽标题与正文块；`get_all_text` / `markdown()` |
+| `SQLiteStorageSystem` + `auto_match`（core/storage.py、parser.py） | `AdaptiveStorage` | 元素指纹入库；站点改版后按 `difflib` 相似度**回捞同一块热评** |
+| `Spider` / `CrawlerEngine`（spiders/*） | `Spider` / `CrawlerEngine` | 49 源并发抓取、单源失败不阻断、断点续爬 |
+| `Scheduler` | `Scheduler` | URL 指纹去重 + 优先级（id 小的源先出结果） |
+| `AutoThrottle`（spiders/throttle.py） | `AutoThrottle` | 按响应延迟自适应每域间隔；被封锁按 `Retry-After` / ×2 退避 |
+| `RobotsTxtManager`（spiders/robotstxt.py） | `RobotsTxtManager` | `--robots` 时遵从 robots.txt 与 crawl-delay（默认与上游一致：不开） |
+| `DevCache` / `CheckpointManager` | `DevCache` / `CheckpointManager` | 开发缓存让本地重复调试不再打站点；`--crawl-dir` 断点续爬 |
+| `generate_headers`（toolbelt/fingerprints.py） | `generate_headers` | Chrome/Firefox/Edge 三族 UA + Sec-Fetch-* 全套指纹头 |
+
+装了真实 `scrapling` 包（`pip install "scrapling[fetchers]"`）的机器上，
+`community_spider.resolve_backend()` 会自动把上游包接成 **传输层**（curl_cffi 的 TLS 指纹），
+解析 / 自适应 / 限速逻辑一字不改；CI 未装包时走 `scrapling_core` 等价移植层，两边同一个口径：
+
+```bash
+python3 scrapling_core.py --self-test        # 移植层自检（CSS / 自适应 / 限速 / robots / 指纹）
+python3 community_spider.py --self-test      # 爬虫自检（假传输层，零联网）
+python3 community_spider.py --limit 5        # 真抓前 5 个源（联调）
+python3 community_data.py --backend scrapling --robots --crawl-dir .crawl
+```
+
+### 前次新增 20 源（编号 15–34）
 
 | # | 社区 | 语言 | 类型（`ctype`） |
 |---|---|---|---|
@@ -300,36 +354,40 @@ python3 -m unittest tests.test_quant_pair
 - **网页 03 节**：标题与筛选按钮改用 build 期现算的 token —— `{{COMMUNITY_TOTAL}}`（源数）、
   `{{COMMUNITY_TYPE_TOTAL}}`（类型数）、`{{CF_BULL/BEAR/NEUTRAL/MIXED}}`（多空家数），
   由 `build_site._community_tokens()` 从当次 `community_data.json` 统计；**只有读不到社区数据时**
-  才退回模板静态卡片的 14 源口径（标题会如实显示 14，不会假称 34）。
+  才退回模板静态卡片的 14 源口径（标题会如实显示 14，不会假称 49）。
 - **微信推送**：`tools/wechat_push.py` 缺 `community_data.json` 时不再另写一份 14 条兜底文案，
-  改为调用 `community_data.offline_dataset()` —— 用**同一个模板引擎**现算 34 条（结构与 live 完全一致，
-  只把 `source` 标成 `fallback`），日期也是当天，杜绝「兜底 14 源 / 动态 34 源」两套口径打架。
-- **推送前核对**：`EXPECTED_CHANNEL_COUNT = 34`，正文里的「最新读取 YYYY-MM-DD」标记必须**恰好 34 条**
-  且全部为当天，否则手动推送拒绝发送（定时推送只告警）。
+  改为调用 `community_data.offline_dataset()` —— 用**同一个模板引擎**现算 49 条（结构与 live 完全一致，
+  只把 `source` 标成 `fallback`），日期也是当天，杜绝「兜底 14 源 / 动态 49 源」两套口径打架。
+- **推送前核对**：`EXPECTED_CHANNEL_COUNT = len(community_data.COMMUNITIES)`（= 49），正文里的
+  「最新读取 YYYY-MM-DD」标记必须**恰好 49 条**且全部为当天，否则手动推送拒绝发送（定时推送只告警）。
 
-### 微信单页字符预算：34 源怎么塞进 95,000 字符
+### 微信单页字符预算：49 源怎么塞进 95,000 字符
 
-14 源时 03 栏（完整卡）约 28K 字符；34 源按同样密度要 66.5K（见下表「完整版」），加上 01/02/04~07 栏会直接顶穿 100K 硬上限与 95,000 推送门禁。
-因此 03 栏新增 `fit_community_block()`，**按剩余预算逐级收敛，每一档都保留全部 34 源、跨域配对与抓取标记**：
+14 源时 03 栏（完整卡）约 28K 字符；49 源按同样密度要 **94.4K**（见下表「完整版」），加上 01/02/04~07 栏会直接顶穿 100K 硬上限与 95,000 推送门禁。
+因此 03 栏继续用 `fit_community_block()` 做**按剩余预算逐级收敛，每一档都保留全部 49 源、跨域配对与抓取标记**：
 
-| 档位 | 每卡内容 | 34 源合计（实测） |
+| 档位 | 每卡内容 | 49 源合计（实测） |
 |---|---|---|
-| 完整版 | 热评 + 战术研判 + 四行核心量化指标 + 完整 AI 量化块 | 66,498 |
-| 标准版 | 热评(220) + 研判(140) + **一行**核心量化指标 + 精简 AI 量化块 | 57,603 |
-| 精简版 | 热评(200) + 一行核心量化指标 + 迷你 AI 量化（读数不删，只压样式） | 40,117 |
-| 紧凑版 | 热评(150) + 迷你 AI 量化 | 32,494 |
-| 名录版 | 一行一名：跨域配对 + 推荐 + 热评(60) + 抓取标记 | 11,847 |
+| 完整版 | 热评 + 战术研判 + 四行核心量化指标 + 完整 AI 量化块 | 94,420 |
+| 标准版 | 热评(220) + 研判(140) + **一行**核心量化指标 + 精简 AI 量化块 | 81,682 |
+| 精简版 | 热评(200) + 一行核心量化指标 + 迷你 AI 量化（读数不删，只压样式） | 56,623 |
+| 紧凑版 | 热评(150) + 迷你 AI 量化 | 46,053 |
+| 名录版 | 一行一名：跨域配对 + 推荐 + 热评(60) + 抓取标记 | 17,194 |
 
-预算里**先给 04 栏（AI 预测）留出「完整版」**，放不下才退到最小的一版——避免 34 源把预测栏挤成一行摘要。
-CI 日志会打印当天落在哪一档：`✂️ 微信推送 03 栏：34 源社区按剩余预算 … 采用「紧凑版」`。
+预算里**先给 04 栏（AI 预测）留出「完整版」**，放不下才退到最小的一版——避免 49 源把预测栏挤成一行摘要。
+49 源实发通常落在「名录版」（单页实测 72,085 字符，远在 95,000 门禁内），**一源不删**。
+CI 日志会打印当天落在哪一档：`✂️ 微信推送 03 栏：49 源社区按剩余预算 … 采用「名录版」`。
 迷你 AI 量化（`quant_pair.render_wechat_mini()`）只保留策略 / 跨域两标的 / 推荐与置信度，
 48 小时风险与走势三行仍完整保留在**网页版**与其它栏目的完整块里，口径同源、不另写一套。
 
 ### 回归防线
 
 ```bash
-python3 community_data.py --demo          # 34 源离线模板（当天日期）
-python3 -m unittest tests.test_community34   # 12 项：源数 / 类型 / 跨域 / 预算 / 不删源
+python3 community_data.py --demo              # 49 源离线模板（当天日期）
+python3 scrapling_core.py --self-test         # 移植层：CSS / 自适应 / 限速 / robots / 指纹
+python3 community_spider.py --self-test       # 爬虫：抽取 / 噪音淘汰 / 封锁降级
+python3 -m unittest tests.test_community49    # 14 项：源数 / 类型 / 跨域 / 预算 / 不删源 / 框架接入
+python3 -m unittest tests.test_scrapling_core # 26 项：Fetcher / Selector / 自适应 / 引擎
 ```
 
 ## 📊 微信推送的字符配图
@@ -441,7 +499,7 @@ python3 build_site.py                            # ⑤ 建站时把「因子读�
 | `macro_data.availability()` | **02 栏兜底口径的单一事实源**：判定本次到底有没有可用快讯，返回 `reason` ∈ `no_file`（文件读不到）/ `bad_type`（产物写坏被截断）/ `no_items`（窗口内 0 条，公开源全挂或全部超窗）/ `stale_snapshot`（读到前几天构建的旧快照，超过 `SNAPSHOT_MAX_AGE_DAYS=1`）。网页与微信两端共用，避免两套渲染各写一套口径而漂移 |
 | `tests/test_macro_data.py` | 快讯层测试（16 项，零联网）：RSS/JSONP 解析、跨源去重、分类路由（IMF+关税 必须落宏观而非大宗）、超窗与无日期拦截、`--mock` 输出契约 |
 | `tests/test_wechat_push_macro.py` | 宏观快讯渲染回归（推送 02 栏 + 网页 02 节，9 项）：必须渲染当次快讯且每条带日期；**四种不可用形态都要落到同一段「今日未获取」兜底文案**；过期快照不得从 01 / 07 栏漏出；网页 `MACROLIST` 注入幂等；正文/注入区禁止再出现 628.69 亿、8 月 12 日、25,440.17 等写死历史内容 |
-| `community_data.py` | **动态社区抓取**：**34 大社区**（14 原有 + 20 新增，中英文 / 30 类社区）HTTP GET + 动态模板回退，生成 `community_data.json`（构建产物，不入库），每次刷新当天日期与研判正文；新增 `ctype` 类型字段与 **`offline_dataset()`**（下游缺产物时给出同构的 34 条兜底，只降级 `source`，不降级源数量） |
+| `community_data.py` | **动态社区抓取**：**49 大社区**（14 原有 + 20 前次新增 + 15 本次扩容，中英文/日韩德 / 45 类社区）经 `community_spider` 的 Scrapling 框架抓取 + 动态模板回退，生成 `community_data.json`（构建产物，不入库），每次刷新当天日期与研判正文；带 `ctype` 类型字段、`fetch_engine` 抓取口径（引擎/传输层/自适应回捞/封锁次数）与 **`offline_dataset()`**（下游缺产物时给出同构的 49 条兜底，只降级 `source`，不降级源数量） |
 | `sentiment_sources.py` | **接口注册表**：11 个量化平台/公开源舆情·新闻因子的能力口径（端点、字段、时效、历史、额度、成本、局限）+ 因子定义 + 9 个评测阶段与 6 维评分权重；`python3 sentiment_sources.py` 打印清单与凭据/依赖状态 |
 | `sentiment_adapters.py` | **接入适配器**：每源一个 `call_*`（live 取数）+ `parse_*`（报文 → 统一结构 `{news, series, meta}`），全部纯标准库；`--mode mock` 用 `tests/fixtures` 录制报文离线校验解析链路 |
 | `sentiment_nlp.py` | **自建情感层**：中文金融词库 + 否定/程度修饰 + 时间衰减 → `score_text()`，`aggregate()` 合成 `NET_SENTI / NEG_SHARE / SENT_TEMP / EVENT_RISK`；`--self-test` 自检 |
@@ -449,9 +507,11 @@ python3 build_site.py                            # ⑤ 建站时把「因子读�
 | `sentiment_factors.py` | **因子合成管线**：分层取数（平台现成因子优先 → 免费热度/文本 + 自建词库）→ `sentiment_data.json`（构建产物，不入库）；`--live` / `--mock` / `--offline`，任何源失败都不阻断 |
 | `tools/probe_sentiment_apis.py` | **接入实测探针**：依赖→网络→鉴权→取数→字段→时效→覆盖→延迟→额度 9 阶段短路判定 + 100 分制打分 → `api_probe_report.json` 与 `docs/sentiment-api-eval.md` |
 | `docs/sentiment-api-eval.md` | **评测矩阵（内部档案）**：结论速览 / 能力矩阵 / 评分明细 / 逐源明细，由探针自动生成；**不在网页与微信推送中展示**（对外不显示来源） |
-| `tests/test_community34.py` | **34 源 + 跨域组合回归（12 项，零联网）**：34 源 id/key/名称唯一、新增 20 源的中英文与类型覆盖、每源模板/研判/量化指标齐全且带当次日期、`offline_dataset()` 与 live 同构、策略目录与 34 张社区卡片全部跨域、网页模板不得再写死「14 平台 / 源数 6-3-3-2」、微信推送 34 条「最新读取」标记齐全且仍在 95,000 门禁内、预算降级时**一源不删** |
+| `tests/test_community49.py` | **49 源 + 跨域组合 + 框架接入回归（14 项，零联网）**：49 源 id/key/名称唯一、本次扩容 15 源的语种与类型覆盖、每源模板/研判/量化指标齐全且带当次日期、`offline_dataset()` 与 live 同构、抓取入口确实走 `community_spider` 且 49 源逐条有抽取规则、策略目录与 49 张社区卡片全部跨域、网页模板不得再写死「14 平台 / 源数 6-3-3-2」、`{{CD_01}}`–`{{CD_49}}` 占位符齐全、微信推送 49 条「最新读取」标记齐全且仍在 95,000 门禁内、预算降级时**一源不删** |
+| `scrapling_core.py` | **Scrapling 框架模型移植（纯标准库，API 与上游一一对应）**：`FetcherSession`/`Response`（浏览器指纹头、重试退避、重定向历史、编码识别、代理轮换）、`Selector`/`Selectors`（CSS 子集、`get_all_text`、HTML→Markdown、选择器生成）、`AdaptiveStorage`（元素指纹入库 + `difflib` 相似度回捞）、`Scheduler`/`AutoThrottle`/`RobotsTxtManager`/`DevCache`/`CheckpointManager`/`Spider`/`CrawlerEngine`/`CrawlStats`。`python3 scrapling_core.py --self-test` |
+| `community_spider.py` | **社区爬虫（49 源）**：每个源一套 CSS 抽取规则 + 通用阶梯 + 自适应指纹回捞 + 港股关键词打分兜底，产出「标题 / 现场片段 / 命中选择器 / 是否回捞 / 状态码 / 字节数」；传输层可切真 `scrapling` 包（`--backend scrapling`）也可用标准库移植层（CI 默认）。`python3 community_spider.py --self-test` / `--limit 5` |
 | `tests/test_sentiment.py` | 舆情层测试（38 项，零联网）：`python3 -m unittest discover -s tests`；含「03B 对外输出不得出现任何来源痕迹」与「采集结果必须匹配到日报标的」两类回归 |
-| `quant_pair.py` | **AI 量化 · 跨域配对交易**：每条内容后选一条策略、给出**恰好两只跨域标的**（港股 / 美股 / 贵金属 / 能源 / 汇率，同域价差不算组合）、用当次涨跌幅做均值回归推荐；行情不足（两腿涨跌幅不齐）则**整段隐藏**，不渲染「数据不足」段（`is_hidden()` 判定，`QUANT_SHOW_NO_DATA=1` 可临时恢复排查）。策略目录 13 条全部跨域、可自检（`cross_domain_catalog_errors()`）。网页与微信共用（完整 / 精简 / 迷你三档渲染，迷你版供 34 源同一页使用）。`python3 quant_pair.py --self-test` |
+| `quant_pair.py` | **AI 量化 · 跨域配对交易**：每条内容后选一条策略、给出**恰好两只跨域标的**（港股 / 美股 / 贵金属 / 能源 / 汇率，同域价差不算组合）、用当次涨跌幅做均值回归推荐；行情不足（两腿涨跌幅不齐）则**整段隐藏**，不渲染「数据不足」段（`is_hidden()` 判定，`QUANT_SHOW_NO_DATA=1` 可临时恢复排查）。策略目录 13 条全部跨域、可自检（`cross_domain_catalog_errors()`）。网页与微信共用（完整 / 精简 / 迷你三档渲染，迷你版供 49 源同一页使用）。`python3 quant_pair.py --self-test` |
 | `char_charts.py` | **微信字符配图**：把力量分、涨跌幅、配对 z、社区构成、舆情读数、**AI 预测（预期涨跌幅发散柱 + 置信度柱）与预测命中率回看**画成 matplotlib 同款的柱状/发散/堆叠字符图。缺数据不编柱。`python3 char_charts.py --self-test` |
 | `forecast.py` | **04 栏「AI 预测 · 未来函数」推理引擎**：四路当次数据 → 下一交易日逐标的预测（方向 / 预期涨跌幅 / 预测区间 / 点位区间 / 置信度 / 驱动拆解）+ 明日盘面倾向 + 历史命中率回看；「未来函数」只取「预测未来」之义，目标日严格晚于行情基准日、预测**先落盘后结算**，当次行情结构上不可能结算当次预测（杜绝 look-ahead bias）。纯标准库纯函数、不联网，构建期由 `build_site.py` 与 `tools/wechat_push.py` 直接调用（**无需改 CI workflow**）。`python3 forecast.py` 文本摘要、`--json` 导出、`--history` 落盘+结算、`--review` 只看回看、`--self-test` 规则自检 |
 | `forecast_history.json` | **AI 预测存档**（构建产物，不入库）：每条预测带 `base_date / target_date / direction / mu_pct / low_pct / high_pct / confidence / settled`；后续构建抓到目标日行情后回填 `actual_pct / hit / in_band / error_pct`。CI 跨运行持久化见 `docs/forecast-ci-cache.patch`（不应用则回看永远 0 样本，功能不受影响）。路径可用 `FORECAST_HISTORY` 覆盖 |
@@ -459,9 +519,9 @@ python3 build_site.py                            # ⑤ 建站时把「因子读�
 | `docs/forecast-ci-cache.patch` | **待人工应用的 workflow 补丁**（GitHub App 无 `workflows` 权限）：三个 job 各加一对 `actions/cache` restore/save 步骤持久化 `forecast_history.json`，打通 04 栏的命中率回看 |
 | `panorama.py` | **01 栏「每日全球全景扫描」推理引擎**：把当次的 `market_data.json` + `macro_data.json` + `sentiment_data.json` + `community_data.json` 合成为**推动股价的 5 大力量**（重点 / 次要 / 噪音 · 利好 / 利空 / 中性 · 0~100 力量分）、三大关注面小结（宏观事件 / 板块轮动 / 情绪变化）与**是否可以做多**的合成分结论，并在每条力量后挂 `quant_pair` 的配对推荐；纯标准库纯函数、不联网不落盘，构建期由 `build_site.py` 与 `tools/wechat_push.py` 直接调用（**因此无需改 CI workflow**）。`python3 panorama.py` 打印文本摘要、`--json` 导出结构化结果、`--self-test` 规则自检 |
 | `tests/test_panorama.py` | 01 栏回归（13 项，零联网）：5 大力量与栏目要素齐全、多/空/横盘三种行情结论必须不同、噪音不计入做多合成分、突发风险分下调做多结论、四路数据缺失时降级为「本栏不编故事」、网页 `PANORAMA` 注入幂等、旧栏目名与写死历史内容不得回归 |
-| `build_site.py` | **动态建站**：把 `report.html` 模板中的 `{{占位符}}` 替换为最新行情/抓取日期/时间戳（含 03 节社区口径 `{{COMMUNITY_TOTAL}}` / `{{COMMUNITY_TYPE_TOTAL}}` / `{{CF_*}}`：源数、类型数与多空家数现算，缺数据才退回模板 14 源口径），把 `panorama.py` 的全景扫描注入 01 节 `<!-- PANORAMA -->` 占位区（哨兵 `<!-- /PANORAMA -->` 保证幂等），把 `community_data.json` 的 34 条最新研判注入 `<!-- COMMUNITY_LIST -->` 标记，把 `macro_data.json` 的快讯注入 02 节 `<!-- MACROLIST -->` 占位区（缺数据→「今日未获取」，回填哨兵 `<!-- /MACROLIST -->` 保证幂等），并把「因子读数 + 标的匹配（不含来源）」注入 `<!-- SENTIMENT_LIST -->` 标记，并把 `forecast.py` 的下一交易日预测注入 04 节 `<!-- FORECAST -->` 占位区（哨兵 `<!-- /FORECAST -->` 保证幂等，同时把当次预测写进 `forecast_history.json`；`--forecast-no-history` / `--check` 不落盘） |
+| `build_site.py` | **动态建站**：把 `report.html` 模板中的 `{{占位符}}` 替换为最新行情/抓取日期/时间戳（含 03 节社区口径 `{{COMMUNITY_TOTAL}}` / `{{COMMUNITY_TYPE_TOTAL}}` / `{{CF_*}}`：源数、类型数与多空家数现算，缺数据才退回模板 14 源口径），把 `panorama.py` 的全景扫描注入 01 节 `<!-- PANORAMA -->` 占位区（哨兵 `<!-- /PANORAMA -->` 保证幂等），把 `community_data.json` 的 49 条最新研判注入 `<!-- COMMUNITY_LIST -->` 标记，把 `macro_data.json` 的快讯注入 02 节 `<!-- MACROLIST -->` 占位区（缺数据→「今日未获取」，回填哨兵 `<!-- /MACROLIST -->` 保证幂等），并把「因子读数 + 标的匹配（不含来源）」注入 `<!-- SENTIMENT_LIST -->` 标记，并把 `forecast.py` 的下一交易日预测注入 04 节 `<!-- FORECAST -->` 占位区（哨兵 `<!-- /FORECAST -->` 保证幂等，同时把当次预测写进 `forecast_history.json`；`--forecast-no-history` / `--check` 不落盘） |
 | `report.html` | 报告**模板源文件**（**电竞指挥中心 × 战术 HUD** · 深色海军蓝底 + 霓虹青 / 能量绿 / 战术紫 / 洋红高亮 · 响应式战情卡片），内含"手动推送"按钮与 01 节 `<!-- PANORAMA -->`、`<!-- COMMUNITY_LIST:BEGIN/END -->`、02 节 `<!-- MACROLIST -->`、04 节 `<!-- FORECAST -->` 动态注入标记；仓库中始终保持模板版本，构建产物不提交（误提交构建产物时 `git checkout -- report.html` 恢复） |
-| `tools/wechat_push.py` | 微信推送工具：读取 `market_data.json` + `community_data.json` 双动态数据，转为微信兼容的**深色电竞 HUD 单页内联样式 HTML**，以深海军蓝 + 电光青 / 荧光绿 / 战术紫 / 警戒红呈现，经 PushPlus **一对多**群组推送（群组编码 `oai.1`）；**03 栏由 `fit_community_block()` 为 34 源按剩余预算选详略**（完整版 → 标准版 → 精简版 → 紧凑版 → 名录版，每一档都保留全部源、跨域配对与「最新读取」标记）；04 栏由 `fit_forecast_block()` 在「完整版 → 精简版 → 一行摘要 → 只留指引」之间选一版；两者合计仍落在 95,000 推送门禁之内 |
+| `tools/wechat_push.py` | 微信推送工具：读取 `market_data.json` + `community_data.json` 双动态数据，转为微信兼容的**深色电竞 HUD 单页内联样式 HTML**，以深海军蓝 + 电光青 / 荧光绿 / 战术紫 / 警戒红呈现，经 PushPlus **一对多**群组推送（群组编码 `oai.1`）；**03 栏由 `fit_community_block()` 为 49 源按剩余预算选详略**（完整版 → 标准版 → 精简版 → 紧凑版 → 名录版，每一档都保留全部源、跨域配对与「最新读取」标记）；04 栏由 `fit_forecast_block()` 在「完整版 → 精简版 → 一行摘要 → 只留指引」之间选一版；两者合计仍落在 95,000 推送门禁之内 |
 | `.github/workflows/m.yml` | CI：动态抓取行情+校验+社区+宏观快讯 → 动态建站（三注入） → 部署 Pages + 一键触发微信单页推送 + **每天北京时间 09:00 定时自动推送** |
 | `docs/macro-ci-workflow.patch` | **待人工应用的 workflow 补丁**（GitHub App 无 `workflows` 权限）：三个 job 各加 `macro_data.py` 抓取步骤（失败不阻断、摘要进 Step Summary）+ `verify_quotes.py` 门禁（deploy 非阻断并公开 `verify_report.json`；wechat/daily FAIL 直接阻断推送） |
 
@@ -480,13 +540,13 @@ python3 build_site.py                            # ⑤ 建站时把「因子读�
 - **标题与署名**：网页标题为「章鱼 AI·全景分析（量化策略多因子分析）」，**微信推送标题为「章鱼 AI·全景分析（量化策略多因子分析）」**（推送卡片顶部大标题同步使用该名称），副标题「全网 AI 调研境内境外数据，由多个大模型混合部署」，**标题去除 pushplus 与时间戳**。正文末尾署名：**作者：章鱼 ai · 仅供参考，分析研究**，并附多模型协同说明。
 - **01 节每日全球全景扫描**：栏目为「**每日全球全景扫描** (Daily Global Panorama Scan)」——扫一遍今天全球市场，总结**推动股价的 5 大力量**，重点关注**宏观事件 / 板块轮动 / 情绪变化**，逐条标注**哪些是重点、哪些是噪音**与**如何利好利空**，最后给出**是否可以做多**的结论。**网页与微信推送两端同步呈现**（`report.html` 的 `<!-- PANORAMA -->` 注入区与 `tools/wechat_push.py` 的 `panorama_block`）。
 
-## 微信推送 (PushPlus · 一对多群组单页完整版 · 34 源动态 · 跨域配对)
+## 微信推送 (PushPlus · 一对多群组单页完整版 · 49 源动态 · 跨域配对)
 
 - **推送标题**：「章鱼 AI·全景分析（量化策略多因子分析）」。三处保持同步 —— `tools/wechat_push.py` 的 `TITLE` 常量（命令行 `--push` / `--emit` / `--embed`）、`report.html` 内嵌负载 `wechat-parts` 的 `title`、网页按钮 `manualPush()` 的 `pushTitle`；推送卡片顶部大标题亦为同一名称。
 - **一对多群组推送**：默认推送到 **`oai.1` 群组**，群内所有关注该群组的微信成员同步接收；需先在 PushPlus 后台「一对多推送」中创建群组编码 `oai.1`，成员扫码关注该群组后即可收推送。
-- **页面只推一个微信页**：点击"手动推送"立即发送**单页完整微信卡片**，全篇 7 大章节与 34 大社区论坛研判一次性送达，无需拆条分发与 15s 等待；34 源按剩余字符预算自动选详略（见下），**任何一档都不会删源**。
+- **页面只推一个微信页**：点击"手动推送"立即发送**单页完整微信卡片**，全篇 7 大章节与 49 大社区论坛研判一次性送达，无需拆条分发与 15s 等待；49 源按剩余字符预算自动选详略（见下），**任何一档都不会删源**。
 - **⏰ 推送前时间核对**：每一次推送前均重新抓取行情+社区数据，并读取当前时间；标题与正文中的"生成时间 / 时间核对"等全部时间戳**实时刷新为最新时间**后再发送（网页按钮与命令行推送均已内置）。
-- **📅 推送前频道最新内容核对**：**每一次推送都重新抓取并逐条检查** 34 个频道内容是否为频道最新（`community_data.py` 每次生成当天日期），不因当天已抓取过而复用历史结果；任一频道缺少「最新读取」标记、检查失败或结果非当天，**手动推送**拒绝推送；**定时推送** (`--scheduled`) 则仅警告不阻断，确保每天 09:00 定时任务可运行。
+- **📅 推送前频道最新内容核对**：**每一次推送都重新抓取并逐条检查** 49 个频道内容是否为频道最新（`community_data.py` 每次生成当天日期），不因当天已抓取过而复用历史结果；任一频道缺少「最新读取」标记、检查失败或结果非当天，**手动推送**拒绝推送；**定时推送** (`--scheduled`) 则仅警告不阻断，确保每天 09:00 定时任务可运行。
 - **🧪 推送前全来源数据准确性校验** (`verify_quotes.py`)：**每一次推送前**对 `market_data.json` 全部 11 个标的做 **Yahoo 官方口径 × Stooq 实时 × Stooq 历史日线重算 × ECB 汇率** 多来源交叉校验——内部自洽 (涨跌额/涨跌幅 ↔ last/prev_close)、行情日期健全性（不超前/不陈旧）、点位与涨跌幅逐源比对；**≥2 个独立来源族彼此一致但与流水线矛盾、或与主源官方口径矛盾即判定 FAIL 并阻断推送** (CI 中 FAIL 时工作流直接终止，绝不把错误数字推给读者)。单源不可达仅告警不阻断，校验报告公开在 `_site/verify_report.json`。背景：2026-09-16 恒指当日 +0.19% 曾被误算成 −2.22% 并推送，本机制保证同类错误在推送前被拦截。命令行可用 `--skip-verify` 跳过（不推荐）、`--verify-strict` 收紧为 WARN 也阻断。
   > ⚠️ 推送门禁内置于 `wechat_push.py --push`（FAIL 即 exit 5，不依赖任何工作流改动即生效）。CI 侧的
   > fail-fast 校验步骤与 `verify_report.json` 公开因 GitHub App 凭证无 `workflows` 权限，改以补丁交付：
@@ -558,7 +618,7 @@ Secrets（仓库 Settings → Secrets and variables → Actions）：
 
 > 提示：GitHub Actions 定时任务存在少量延迟属正常现象；若需精确到秒的定时，可结合仓库 Secrets (PUSHPLUS_TOKEN / ZECTRIX_API_KEY) 与外部 Cron 服务。
 
-## 🐛 历史修复记录：红圈旧数据问题（当时为 14 源；现为 34 源，逻辑不变）
+## 🐛 历史修复记录：红圈旧数据问题（当时为 14 源；现为 49 源，逻辑不变）
 
 - **问题**：截图红圈显示 14 个社区正文仍是“8 月 12 日”旧数据，仅 `{{CD_xx}}` 日期占位符刷新，社区研判正文未动态。
 - **根因**：`report.html` 与 `tools/wechat_push.py` 中社区内容为硬编码静态文本，未接入动态管线。

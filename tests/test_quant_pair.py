@@ -108,7 +108,7 @@ class TestPairEngine(unittest.TestCase):
         self.assertIn('宏观', quant_pair.recommend('原油与供应', {})['outlook']['risk'])
 
     def test_mini_render_keeps_pair_and_stance(self):
-        """超紧凑版（34 源同一页时用）也必须保留策略 / 跨域两标的 / 推荐。"""
+        """超紧凑版（49 源同一页时用）也必须保留策略 / 跨域两标的 / 推荐。"""
         rec = quant_pair.recommend('美联储利率与黄金', _quotes(GOLD=1.2, USDCNH=-0.3), hint='fed')
         mini = quant_pair.render_wechat_mini(rec)
         self.assertIn(rec['pair_label'], mini)
@@ -185,7 +185,7 @@ class TestAttachedAfterContent(unittest.TestCase):
         self.assertNotIn('数据不足', hidden)
 
     def test_wechat_fallback_hides_the_block_when_quotes_are_missing(self):
-        """行情不足：34 张社区卡照旧齐全，但每张卡的 AI 量化段整段隐藏。"""
+        """行情不足：49 张社区卡照旧齐全，但每张卡的 AI 量化段整段隐藏。"""
         missing = os.path.join(REPO_ROOT, 'tests', 'fixtures', 'no-such-quant.json')
         saved = {}
         keys = ('MARKET_DATA', 'COMMUNITY_DATA', 'SENTIMENT_DATA', 'MACRO_DATA', 'MACRO_AUTO_FETCH')
@@ -201,7 +201,7 @@ class TestAttachedAfterContent(unittest.TestCase):
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = v
-        self.assertIn('34 源动态抓取已上线', html)
+        self.assertIn(f'{len(wp.community_mod.COMMUNITIES)} 源动态抓取已上线', html)
         self.assertNotIn('数据不足', html, '行情不足时整段隐藏，不再铺「数据不足」段')
         self.assertNotIn('◆ AI 量化 · 配对交易', html, '块标题也不渲染')
         self.assertNotIn('◆ AI 量化｜', html, '迷你版同样整段隐藏（名录版也不写「数据不足」）')
@@ -210,7 +210,7 @@ class TestAttachedAfterContent(unittest.TestCase):
             self.assertNotIn(bad, html)
 
     def test_wechat_blocks_come_back_once_the_quotes_are_there(self):
-        """同一份 34 源：行情齐全时每张卡照旧各挂一块（两标的跨域组合）。"""
+        """同一份 49 源：行情齐全时每张卡照旧各挂一块（两标的跨域组合）。"""
         market = _quotes(HSI=0.2, HSTECH=1.1, HSCE=-0.4, SPX=0.3, NDQ=0.6, DJI=0.1,
                          GOLD=0.4, WTI=1.3, BRENT=0.9, USDCNH=-0.1, USDCNY=-0.05)
         d = wp.community_mod.offline_dataset(market)
@@ -222,10 +222,10 @@ class TestAttachedAfterContent(unittest.TestCase):
                         'quant': c.get('quant'), 'meta': c.get('meta'), 'key': c.get('key')}
                        for c in d['communities']]
         html = wp.community_section(communities, 'full', quotes=market)
-        self.assertEqual(html.count('◆ AI 量化'), 34, '34 张卡各挂一块')
+        self.assertEqual(html.count('◆ AI 量化'), len(communities), '每张卡各挂一块')
         self.assertNotIn('数据不足', html)
-        self.assertEqual(html.count('跨域组合：'), 34)
-        self.assertEqual(html.count('推荐：'), 34)
+        self.assertEqual(html.count('跨域组合：'), len(communities))
+        self.assertEqual(html.count('推荐：'), len(communities))
 
 
 if __name__ == '__main__':
