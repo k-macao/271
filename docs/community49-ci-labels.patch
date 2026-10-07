@@ -1,0 +1,62 @@
+diff --git a/.github/workflows/m.yml b/.github/workflows/m.yml
+index fab3c63..02eb326 100644
+--- a/.github/workflows/m.yml
++++ b/.github/workflows/m.yml
+@@ -8,7 +8,7 @@
+ #
+ # 动态抓取管线 (每次运行均执行, 真正上线 — 行情+社区双动态):
+ #   market_data.py      → market_data.json      (Yahoo Finance / Stooq 多源回退抓取最新行情)
+-#   community_data.py   → community_data.json   (34 大社区 HTTP GET + 动态模板回退，每次刷新当天日期)
++#   community_data.py   → community_data.json   (49 大社区 HTTP GET + 动态模板回退，每次刷新当天日期)
+ #   tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md (量化平台舆情接口实测评分)
+ #   sentiment_factors.py → sentiment_data.json (聚宽/米筐/掘金/优矿 + 免费兜底源舆情·新闻因子；境内取不到则 --mock 降级)
+ #   build_site.py       → report.html           (把行情+社区+抓取日期注入页面与推送内容)
+@@ -65,7 +65,7 @@ jobs:
+       - name: 🌐 动态抓取行情 (market_data.py → market_data.json)
+         run: python3 market_data.py
+ 
+-      - name: 🗣️ 动态抓取社区 (community_data.py → community_data.json · 34 源)
++      - name: 🗣️ 动态抓取社区 (community_data.py → community_data.json · 49 源)
+         run: python3 community_data.py
+ 
+       - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)
+@@ -156,7 +156,7 @@ jobs:
+       - name: 🌐 动态抓取行情 (market_data.py)
+         run: python3 market_data.py
+ 
+-      - name: 🗣️ 动态抓取社区 (community_data.py · 34 源)
++      - name: 🗣️ 动态抓取社区 (community_data.py · 49 源)
+         run: python3 community_data.py
+ 
+       - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)
+@@ -227,7 +227,7 @@ jobs:
+       - name: 🌐 动态抓取行情 (market_data.py)
+         run: python3 market_data.py
+ 
+-      - name: 🗣️ 动态抓取社区 (community_data.py · 34 源)
++      - name: 🗣️ 动态抓取社区 (community_data.py · 49 源)
+         run: python3 community_data.py
+ 
+       - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)
+diff --git a/.github_workflow_new.yml b/.github_workflow_new.yml
+index 1f7c937..f740a9a 100644
+--- a/.github_workflow_new.yml
++++ b/.github_workflow_new.yml
+@@ -10,7 +10,7 @@
+ # 动态抓取管线 (每次运行均执行, 真正上线 — 行情+社区双动态):
+ #   market_data.py      → market_data.json      (Yahoo Finance 主源 → Stooq 回退 + 交叉校正)
+ #   verify_quotes.py    → verify_report.json    (推送前全来源数据准确性校验 · FAIL 阻断推送)
+-#   community_data.py   → community_data.json   (34 大社区 HTTP GET + 动态模板回退，每次刷新当天日期)
++#   community_data.py   → community_data.json   (49 大社区 HTTP GET + 动态模板回退，每次刷新当天日期)
+ #   tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md (量化平台舆情接口实测评分)
+ #   sentiment_factors.py → sentiment_data.json (聚宽/米筐/掘金/优矿 + 免费兜底源舆情·新闻因子；境内取不到则 --mock 降级)
+ #   build_site.py       → report.html           (把行情+社区+抓取日期注入页面与推送内容)
+@@ -75,7 +75,7 @@ jobs:
+           python3 verify_quotes.py --data market_data.json --json verify_report.json --text > verify_summary.txt || true
+           if [ -f verify_summary.txt ]; then cat verify_summary.txt >> "$GITHUB_STEP_SUMMARY"; fi
+ 
+-      - name: 🗣️ 动态抓取社区 (community_data.py → community_data.json · 34 源)
++      - name: 🗣️ 动态抓取社区 (community_data.py → community_data.json · 49 源)
+         run: python3 community_data.py
+ 
+       - name: 🔬 舆情接口实测 (tools/probe_sentiment_apis.py → docs/sentiment-api-eval.md)

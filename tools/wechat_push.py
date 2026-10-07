@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-章鱼 AI·全景分析（量化策略多因子分析） — 微信推送工具 (一对多群组 oai.1 · 单页详尽完整版 · 34 源动态抓取)
+章鱼 AI·全景分析（量化策略多因子分析） — 微信推送工具 (一对多群组 oai.1 · 单页详尽完整版 · 49 源动态抓取)
 
 将 report.html 转换为微信 (PushPlus HTML 模板) 兼容的内联样式 HTML，
 生成 wechat.json 供网页按钮使用，并可直接推送至 PushPlus。
@@ -9,7 +9,7 @@
 核心特点:
   • 一对多群组推送: 默认推送至 oai.1 群组 (PUSHPLUS_TOPIC='oai.1')，群内所有关注成员同步接收。
   • 单页完整推送: 每次只推一条完整微信卡片 (单页全文)，解除 19,000 限制 (上限 100,000 字符)，无需分条分发与等待。
-  • 每次推送均重新抓取: 不复用上一轮抓取结果；推送前逐条核对 34 个频道的「最新读取」标记，抓取失败/缺项时不得推送。
+  • 每次推送均重新抓取: 不复用上一轮抓取结果；推送前逐条核对 49 个频道的「最新读取」标记，抓取失败/缺项时不得推送。
   • 01 栏每日全球全景扫描: 由 panorama.py 在推送前现算 —— 推动股价的 5 大力量（重点/次要/噪音 ·
     利好/利空 · 0~100 力量分）、宏观事件/板块轮动/情绪变化三大关注面、以及「是否可以做多」的
     合成分结论；四路数据全缺时降级为「本栏不编故事」，不回填历史叙事。
@@ -17,7 +17,7 @@
     预测区间 / 点位区间 / 置信度 / 驱动拆解）与明日盘面倾向；目标日严格晚于行情基准日，
     预测先落盘 forecast_history.json、等目标日行情到位才结算命中率，绝不用当次行情给当次预测打分；
     行情缺席时降级为「今日未获取 —— 本栏不预测」，不回填上一版预测。
-  • 全板块 AI 深度详尽分析: 宏观、利率、港股资金流、34 大社区论坛逐一展开长文深度战术研判。
+  • 全板块 AI 深度详尽分析: 宏观、利率、港股资金流、49 大社区论坛逐一展开长文深度战术研判。
   • 电竞指挥中心 × 战术 HUD 风格：深海军蓝底 + 冷白正文，电光青 / 荧光绿 / 战术紫 / 警戒红分层强调；
     多空卡片按信号着色，所有样式均内联以适配 PushPlus / 微信阅读。
 
@@ -60,7 +60,7 @@ if REPO_ROOT not in sys.path:
 import sentiment_match as smatch                          # noqa: E402  采集→匹配→脱敏展示层
 import panorama                                           # noqa: E402  01 栏「每日全球全景扫描」推理引擎
 import macro_data as macro_data_mod                       # noqa: E402  02 栏快讯可用性判定（兜底口径单一事实源）
-import community_data as community_mod                    # noqa: E402  34 大社区兜底数据集（缺 community_data.json 时同构生成）
+import community_data as community_mod                    # noqa: E402  49 大社区兜底数据集（缺 community_data.json 时同构生成）
 import quant_pair                                         # noqa: E402  每条内容后的 AI 量化配对
 import char_charts                                        # noqa: E402  推送字符配图（matplotlib 图种的字符版）
 import forecast as forecast_mod                           # noqa: E402  04 栏「AI 预测 · 未来函数」推理引擎
@@ -81,12 +81,13 @@ TITLE = '章鱼 AI·全景分析（量化策略多因子分析）'
 CONTENT_LIMIT = 100000
 CONTENT_SAFE_LIMIT = 95000
 MAX_PUSH_RETRIES = 3
-# 34 大社区（14 原有 + 20 新增）：推送前逐频道核对「最新读取」标记的期望条数
-EXPECTED_CHANNEL_COUNT = 34
+# 49 大社区（14 原有 + 20 前次新增 + 15 本次扩容）：推送前逐频道核对「最新读取」标记的期望条数
+# 直接跟社区目录走：目录扩容后这里无需再手工改数字，避免「兜底 34 源 / 目录 49 源」口径打架。
+EXPECTED_CHANNEL_COUNT = len(community_mod.COMMUNITIES)
 
 MINUS = '\u2212'  # U+2212 真正的减号，与全文风格一致
 
-# 34 大社区「综合站内 … 最新读取 YYYY-MM-DD」逐频道标记 (用于推送前逐条核对)
+# 49 大社区「综合站内 … 最新读取 YYYY-MM-DD」逐频道标记 (用于推送前逐条核对)
 CHANNEL_READ_RE = re.compile(r'综合站内[^<]*?最新读取\s+(20\d{2}-\d{2}-\d{2})')
 
 
@@ -104,7 +105,7 @@ def load_market_data():
 
 
 def load_community_data():
-    """读取 community_data.py 生成的 community_data.json（34 大社区动态抓取）。
+    """读取 community_data.py 生成的 community_data.json（49 大社区动态抓取）。
 
     路径可用环境变量 COMMUNITY_DATA 覆盖；文件缺失/损坏时返回 {}，
     此时正文回退到内置兜底社区数据（但日期会被刷新为当天），保证离线也能正常推送。
@@ -253,7 +254,7 @@ def quant_html_inline(quant):
     r = quant.get('relevance', {})
     n = quant.get('novelty', {})
     # 四行要点用 <br/> 串起来而不是四个带 style 的 <div>：微信单页字符预算很紧，
-    # 34 张卡片 × 4 组重复样式是一笔白花的开销，显示效果一致。
+    # 49 张卡片 × 4 组重复样式是一笔白花的开销，显示效果一致。
     return (
         f'<div style="background:{WECHAT_PANEL_SOFT};color:{WECHAT_TEXT_SOFT};border:1px dashed {WECHAT_VIOLET};border-radius:4px;'
         f'padding:9px 11px;margin-top:9px;font-size:11px;line-height:1.7">'
@@ -289,7 +290,7 @@ def _clip_text(text, limit):
 
 
 def community_card(c, level='full', quotes=None):
-    """一张社区卡片。level 决定详略（微信单页字符预算有限，34 源要挤进同一页）：
+    """一张社区卡片。level 决定详略（微信单页字符预算有限，49 源要挤进同一页）：
 
         full          完整版：热评 + 战术研判 + 四行核心量化指标 + 完整 AI 量化块
         standard      标准版：热评(220) + 研判(140) + 一行量化指标 + 精简 AI 量化块
@@ -363,7 +364,7 @@ def community_section(communities, level='full', quotes=None):
     return '\n'.join(community_card(c, level, quotes) for c in communities)
 
 
-# 03 栏在正文里的占位槽：34 源社区按剩余预算选详略等级（完整 → 标准 → 紧凑 → 名录）
+# 03 栏在正文里的占位槽：49 源社区按剩余预算选详略等级（完整 → 标准 → 紧凑 → 名录）
 COMMUNITY_SLOT = '<!--COMMUNITY-SLOT-->'
 COMMUNITY_MARGIN = 1500
 
@@ -415,17 +416,17 @@ def forecast_block_candidates(fc_data, neon=WECHAT_NEON, green=WECHAT_GREEN, ink
 
 
 def fit_community_block(html, communities, fc_data=None, quotes=None):
-    """把 34 源社区塞进微信单页的剩余预算里（与 04 栏同一套「按预算收敛」思路）。
+    """把 49 源社区塞进微信单页的剩余预算里（与 04 栏同一套「按预算收敛」思路）。
 
-    社区从 14 源扩到 34 源之后，逐条完整卡片会直接顶穿 100K 硬上限，
-    因此 03 栏按剩余预算逐级收敛（每一档都保留全部 34 源、都带跨域配对与抓取标记）：
+    社区从 14 源扩到 49 源之后，逐条完整卡片会直接顶穿 100K 硬上限，
+    因此 03 栏按剩余预算逐级收敛（每一档都保留全部 49 源、都带跨域配对与抓取标记）：
 
         完整版（热评 + 研判 + 四行量化指标 + 完整 AI 量化）
           → 标准版（热评 + 研判 + 一行量化指标 + 精简 AI 量化）
             → 紧凑版（热评截断 + 精简 AI 量化）
               → 名录版（一行一名：跨域配对 + 推荐 + 抓取标记）
 
-    预算里先给 04 栏留出**最小可用**的一版（一行摘要 + 余量），否则 34 源会把预测栏挤没；
+    预算里先给 04 栏留出**最小可用**的一版（一行摘要 + 余量），否则 49 源会把预测栏挤没；
     真正发哪一版预测由随后的 fit_forecast_block() 按实际剩余预算决定。
     """
     if COMMUNITY_SLOT not in html:
@@ -495,7 +496,7 @@ def build_single_wechat_html(now=None):
 
     动态数据:
       - market_data.json: 行情数字、行情快照
-      - community_data.json: 34 大社区最新研判（每次构建自动抓取，杜绝旧数据）
+      - community_data.json: 49 大社区最新研判（每次构建自动抓取，杜绝旧数据）
       若文件缺失时回退到内置兜底数据，但日期统一刷新为当天，保证离线可推送。
     """
     now = now or datetime.now(timezone.utc)
@@ -615,10 +616,10 @@ def build_single_wechat_html(now=None):
                 f'border:1px solid {WECHAT_BORDER};border-radius:4px;'
                 f'padding:14px 16px;margin:10px 0;font-size:12px;line-height:1.85;">{inner}</div>')
 
-    # ---------- 动态社区列表（34 源：14 原有 + 20 新增，中英文/不同类型） ----------
-    # 缺 community_data.json 时走 community_data.offline_dataset()：同一个模板引擎现算 34 条，
+    # ---------- 动态社区列表（49 源：14 原有 + 20 前次新增 + 15 本次扩容，中英文/多语种/不同类型） ----------
+    # 缺 community_data.json 时走 community_data.offline_dataset()：同一个模板引擎现算 49 条，
     # 结构与 live 完全一致（只把 source 标记为 fallback），不再在推送工具里另写一份兜底文案 ——
-    # 两处各写一套正是「兜底 14 源」与「动态 34 源」口径打架的根源。
+    # 两处各写一套正是「兜底 14 源」与「动态 49 源」口径打架的根源。
     def community_record(c):
         """community_data.json（或兜底数据集）→ 渲染层统一的记录结构。"""
         meta = c.get('meta') or f"{c.get('meta_tpl', '综合站内 10 条讨论')} · 最新读取 {_community_fetch_date}"
@@ -995,7 +996,7 @@ def build_single_wechat_html(now=None):
   </div>
 
 </div>'''
-    # 03 栏（34 源社区）与 04 栏按微信单页剩余字符预算各自选详略版本：
+    # 03 栏（49 源社区）与 04 栏按微信单页剩余字符预算各自选详略版本：
     # 先按「给 04 栏留出最小一版」的预算填充社区，再由 fit_forecast_block() 用剩下的预算选预测版本。
     html = fit_community_block(html, communities, fc_data=_fc, quotes=_quotes)
     html = fit_forecast_block(html, _fc)
@@ -1004,7 +1005,7 @@ def build_single_wechat_html(now=None):
         print(f'  🔒 行情不足：{_hidden_n} 处 AI 量化配对已整段隐藏（两腿涨跌幅不齐，'
               '不渲染「数据不足」，也不编方向）')
 
-    # 34 大社区「最新读取」日期统一刷新为当日抓取日期（动态抓取真正上线）
+    # 49 大社区「最新读取」日期统一刷新为当日抓取日期（动态抓取真正上线）
     html = re.sub(r'(最新读取\s+)(20\d{2}-\d{2}-\d{2})',
                   lambda m: m.group(1) + _fetch_date, html)
     return html.strip(), ts, ts_full
@@ -1014,7 +1015,7 @@ def extract_fetch_dates(text):
     return sorted(set(re.findall(r'最新读取\s+(20\d{2}-\d{2}-\d{2})', text)))
 
 def assert_fetch_dates_are_today(parts, now, strict=True):
-    """推送前逐条核对 34 个频道「最新读取」标记，缺项或非当天时拒绝推送。"""
+    """推送前逐条核对 49 个频道「最新读取」标记，缺项或非当天时拒绝推送。"""
     today = now.strftime('%Y-%m-%d')
     reads = []
     for title, content in parts:
@@ -1158,7 +1159,7 @@ def run_push_preflight(strict=False, timeout=8, report_path=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='章鱼 AI·全景分析（量化策略多因子分析） — 微信推送工具 (一对多群组 oai.1 · 单页详尽完整版 · 34 源动态)')
+    ap = argparse.ArgumentParser(description='章鱼 AI·全景分析（量化策略多因子分析） — 微信推送工具 (一对多群组 oai.1 · 单页详尽完整版 · 49 源动态)')
     ap.add_argument('--source', default=SOURCE_HTML, help='报告 HTML 文件路径')
     ap.add_argument('--emit', metavar='PATH', help='写出 wechat.json 的路径')
     ap.add_argument('--embed', action='store_true',

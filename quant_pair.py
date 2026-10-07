@@ -86,7 +86,7 @@ NAME_TO_HINT = (
     ('韭圈', 'JIUQUAN'), ('蚂蚁财富', 'ANTFORTUNE'), ('Reddit', 'REDDIT'),
     ('TradingView', 'TRADINGVIEW'), ('Value Investors', 'VIC'),
     ('FinTwit', 'FINTWIT'), ('Twitter', 'FINTWIT'),
-    # 本次新增的 20 个社区（34 源口径）
+    # 前次新增的 20 个社区（34 → 49 源口径）
     ('知乎', 'ZHIHU'), ('微博', 'WEIBO'), ('百度贴吧', 'TIEBA'), ('贴吧', 'TIEBA'),
     ('淘股吧', 'TAOGUBA'), ('同花顺', 'THS'), ('格隆汇', 'GELONGHUI'),
     ('财联社', 'CLS'), ('第一财经', 'YICAI'), ('Bilibili', 'BILIBILI'), ('哔哩哔哩', 'BILIBILI'),
@@ -95,6 +95,14 @@ NAME_TO_HINT = (
     ('Wall Street Oasis', 'WSO'), ('Investing.com', 'INVESTING'),
     ('Yahoo Finance', 'YAHOO'), ('Substack', 'SUBSTACK'), ('r/options', 'ROPTIONS'),
     ('Alphaville', 'FTALPHA'),
+    # 本次扩容的 15 个社区（49 源口径）
+    ('集思录', 'JISILU'), ('小红书', 'XIAOHONGSHU'), ('抖音', 'DOUYIN'),
+    ('开盘啦', 'KAIPANLA'), ('理想论坛', 'LIXIANG'), ('QuantNet', 'QUANTNET'),
+    ('Elite Trader', 'ELITETRADER'), ('Forex Factory', 'FOREXFACTORY'),
+    ('CryptoCurrency', 'RCRYPTO'), ('Morningstar', 'MORNINGSTAR'),
+    ('MarketWatch', 'MARKETWATCH'), ('Yahoo! 财经', 'YAHOOJP'), ('NAVER', 'NAVER'),
+    ('네이버', 'NAVER'), ('Wallstreet-Online', 'WALLSTREETDE'),
+    ('阿斯达克', 'AASTOCKS'), ('AASTOCKS', 'AASTOCKS'),
 )
 
 HINT_WEIGHT = 4
@@ -709,7 +717,7 @@ def render_wechat_mini(rec):
     """微信「超紧凑」版：一行给出策略 / 两标的跨域组合 / 推荐与置信度。
 
     48 小时风险与走势三行仍完整保留在**网页版**与其它栏目的完整块里；
-    社区从 14 源扩到 34 源后，同一段三行预测在一页里要重复 30 多次，
+    社区从 14 源扩到 49 源后，同一段三行预测在一页里要重复 40 多次，
     因此在预算吃紧的社区区块用这一版，口径与完整版完全一致（同一份 rec）。
     行情不足时与完整版一样整段隐藏（迷你版也不留「数据不足」字样）。
     """

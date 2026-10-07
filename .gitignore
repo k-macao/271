@@ -24,3 +24,13 @@ verify_summary.txt
 # 极趣墨水屏同步构建产物（每次构建生成，不入库）
 page_*.png
 eink_preview/
+
+# Scrapling 框架模型的运行期产物（社区抓取）
+#   .scrapling/      community_data.py 的元素指纹库（自适应回捞）与开发缓存
+#   .scrapling_test/ 自检 / 单测用的临时指纹库（零联网假传输层）
+#   .crawl*/         断点续爬的断点目录（--crawl-dir）
+.scrapling/
+.scrapling_test/
+.crawl/
+.crawl*/
+dev_cache/
