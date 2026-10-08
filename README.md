@@ -19,9 +19,9 @@ python3 tools/wechat_push.py --embed # ④ 内嵌最新推送负载进 report.ht
 python3 tools/wechat_push.py --push --scheduled   # ⑤ 推送完整报告到微信
 ```
 
-- **行情源**：Yahoo Finance chart API → Stooq CSV 多源自动回退（纯标准库，CI 无需安装依赖）。
+- **行情源**：Yahoo Finance chart API → Stooq CSV 多源自动回退（纯标准库，CI 无需安装依赖）；行情清单新增 **Cboe VIX（`^VIX`）**，与其它标的一起每日现抓、失败单独降级。
 - **社区源（34 → 49）**：**49 大社区** —— 原有 14 源（富途牛牛 / 雪球 / 老虎 / 东方财富 / 智通财经 / 华尔街见闻 / 香港讨论区 / LIHKG / 韭圈儿 / 蚂蚁财富 / Reddit / TradingView / VIC / FinTwit）＋ 前次新增 20 源（知乎 / 微博财经 / 百度贴吧股票吧 / 淘股吧 / 同花顺 / 格隆汇 / 财联社 / 第一财经 / Bilibili 财经区 / PTT Stock 板 / StockTwits / Seeking Alpha / Bogleheads / r/investing / Wall Street Oasis / Investing.com 讨论区 / Yahoo Finance / Substack / r/options / FT Alphaville）＋ **本次扩容 15 源**（集思录 / 小红书理财笔记 / 抖音财经短视频 / 开盘啦情绪复盘 / 理想论坛实战 / QuantNet / Elite Trader / Forex Factory / r/CryptoCurrency / Morningstar / MarketWatch / 日本 Yahoo! 财经掲示板 / 네이버 금융 종토방 / Wallstreet-Online / 阿斯达克财经讨论区），覆盖中英文与日文 / 韩文 / 德文，以及问答 / 社交 / 论坛 / 研究 / 快讯 / 媒体 / 视频 / 机构 / 衍生品 / 订阅研究 / 低风险 / 短视频 / 量化 / 外汇 / 数字资产 / 本地财经等 **45 类社区**。**每次构建均由 Scrapling 框架模型（`scrapling_core.py` + `community_spider.py`）并发抓取** —— Spider/CrawlerEngine 线程池 + Scheduler 指纹去重 + AutoThrottle 每域限速 + 封锁状态码重试 + 元素指纹自适应回捞，提取文本片段作为活数据佐证，结合最新行情动态生成研判；单源失败自动降级为基于最新行情的动态模板，**保证 49 源永远齐全**，且**正文日期永远为当天**。
-- **覆盖标的**：恒指 / 恒生科技 / 恒生国企 / 标普 500 / 纳斯达克 / 道琼斯 / 现货黄金 / WTI / 布伦特 / 美元离岸与在岸人民币。
+- **覆盖标的**：VIX 恐慌指数 / 恒指 / 恒生科技 / 恒生国企 / 标普 500 / 纳斯达克 / 道琼斯 / 现货黄金 / WTI / 布伦特 / 美元离岸与在岸人民币（共 12 项实时行情；04 栏仍只预测原有 11 个可配置资产，不把 VIX 点位当作股票方向）。
 - **失败降级**：单品行情/单社区抓取失败自动降级（行情显示 "—"，社区显示动态模板），并在页面标注，**不阻断构建与推送**，保证 09:00 定时任务永不中断。
 - **02 栏（全球经济与财经动态）已改为快讯驱动**：`macro_data.py` 每次构建现抓 Google News RSS（中/英分主题）+ 美联储官方新闻稿 RSS + 东财财经快讯检索，按「宏观 / 美联储 / 港股 / 大宗商品 / 大行目标价」五类归组后渲染，**每条快讯自带发布日期**；超窗或无日期的条目在数据层就被丢弃（`stale_dropped` / `undated_dropped`）。**修复背景（2026-09-16 核查）**：这一栏原本是写死在 `tools/wechat_push.py` 里的固定文案（IMF 7 月 WEO、7 月 29 日 FOMC、8 月 12 日 CPI、南向 628.69 亿、各行恒指目标价…），构建时原样重播、页脚却盖当天时间戳，导致「生成时间是当天、正文停在 8 月 12 日」；现在抓不到快讯时 02 栏明确显示「今日未获取」+ 实时行情，**绝不回填历史叙事**（回归防线：`tests/test_wechat_push_macro.py` 断言正文不得再出现任何写死的历史事实）。
 - **网页 02 节同步接入宏观快讯**：`report.html` 的 02 节（行情快照）新增 `<!-- MACROLIST -->` 占位区，`build_site.py` 从**同一个** `macro_data.json` 注入五类快讯（每条自带发布日期，注入区尾部留 `<!-- /MACROLIST -->` 哨兵保证重复构建幂等）；缺 `macro_data.json` 时网页同样显示「今日未获取」+ `python3 macro_data.py …` 恢复命令，**绝不回填历史叙事** —— 网页与微信推送共用一套数据与时效口径（回归防线同上：`tests/test_wechat_push_macro.py` 同时断言网页注入区不含任何写死的历史事实）。
@@ -33,6 +33,29 @@ python3 tools/wechat_push.py --push --scheduled   # ⑤ 推送完整报告到微
 - **`verify_quotes.py` 的推送门禁仍待人工应用**：`#43` 声称但从未生效的部分（Pages 阶段 `|| true` 不阻断 + `verify_report.json` 随站点公开，推送阶段 FAIL 直接阻断）仍以 `docs/macro-ci-workflow.patch` 交付；这次**没有**把它一起接进 workflow —— 当前校验对恒指口径判 FAIL（`python3 verify_quotes.py` 实测 `pass 0 / warn 10 / fail 1`），若直接启用「推送阶段 FAIL 阻断」会把每日 09:00 推送整条掐断，需要先修校验口径再开门禁。
 - **日期联动**：49 大社区「最新读取」日期与正文中的“8 月 X 日”日期均随抓取日自动刷新（`community_data.py` 生成当天日期），推送前日期核对（`--push` 严格 / `--scheduled` 宽松）逻辑保持不变：`EXPECTED_CHANNEL_COUNT = len(community_data.COMMUNITIES)`（= **49**，跟目录走、不再写死数字），**49 条标记逐条核对**（缺项或非当天 → 手动推送拒绝、定时推送告警）。
 - 本地联调可用 `python3 market_data.py --demo && python3 community_data.py --demo` 生成模拟行情+社区。
+
+## 🌡️ 00 栏：每日 VIX 恐慌指数 (Daily VIX Fear Gauge)
+
+本栏放在网页与微信正文的最开头，每次构建直接读取 `market_data.json → quotes.VIX`，展示
+**当次点位 / 较前收涨跌 / 涨跌幅 / 行情日期 / 波动定价分档 / 30 日一标准差粗略幅度**；
+极趣墨水屏报告的第一页与 02 行情表也同步带上 VIX。行情缺失时只显示「今日未获取」，
+**不回填上一版点位，也不把缺失误写成“平静”**。统一分析与两端渲染集中在 `vix_daily.py`。
+
+说明口径参考 [CTAAgents/notes《VIX 研究综合综述》](https://github.com/CTAAgents/notes)：
+
+- **定义**：VIX 由一篮子 SPX 虚值看涨 / 看跌期权按模型自由方差法合成，度量期权市场对
+  未来 30 天隐含波动率的定价，以年化百分数报价。
+- **换算**：`VIX × √(30/365)` 只用于粗略理解未来 30 天的一标准差**幅度**，不代表上涨或下跌方向。
+- **Q / P 边界**：`VIX²` 更接近风险中性测度 Q 下的预期方差，不等于现实测度 P 下的
+  已实现波动率，也不是崩盘概率或“纯情绪”。VIX 抬升还可能同时包含客观波动预期、
+  风险厌恶 / 方差风险溢价、情绪与流动性。
+- **分档边界**：页面的 `<12 / 12–20 / 20–30 / 30–40 / ≥40` 是本报告为了每日阅读设置的
+  实践分档，**不是 Cboe 官方评级、崩盘概率或交易信号**；分档不进入 01 合成分、04 预测或配对推荐。
+
+```bash
+python3 market_data.py --demo                    # 生成含 VIX 的 12 项演示行情
+python3 -m unittest tests.test_vix_daily         # 定义 / 分档 / 缺失降级 / 网页与微信顺序
+```
 
 ## 🌍 01 栏：每日全球全景扫描 (Daily Global Panorama Scan)
 
@@ -148,7 +171,7 @@ python3 -m unittest tests.test_panorama   # 13 项回归
 ### 两端输出与微信字符预算
 
 网页 04 节给完整版（逐标的表 + 驱动拆解 + 三路输入信号 + 回看）。
-微信单页有 10 万字符硬上限、95,000 推送门禁，而既有 01~07 栏已经占掉约 92K，
+微信单页有 10 万字符硬上限、95,000 推送门禁，而完整日报各栏本就接近预算上限，
 所以 04 栏在推送侧是**预算自适应**的（`tools/wechat_push.py::fit_forecast_block`）：
 
 ```
@@ -544,10 +567,10 @@ python3 build_site.py                            # ⑤ 建站时把「因子读�
 
 - **推送标题**：「章鱼 AI·全景分析（量化策略多因子分析）」。三处保持同步 —— `tools/wechat_push.py` 的 `TITLE` 常量（命令行 `--push` / `--emit` / `--embed`）、`report.html` 内嵌负载 `wechat-parts` 的 `title`、网页按钮 `manualPush()` 的 `pushTitle`；推送卡片顶部大标题亦为同一名称。
 - **一对多群组推送**：默认推送到 **`oai.1` 群组**，群内所有关注该群组的微信成员同步接收；需先在 PushPlus 后台「一对多推送」中创建群组编码 `oai.1`，成员扫码关注该群组后即可收推送。
-- **页面只推一个微信页**：点击"手动推送"立即发送**单页完整微信卡片**，全篇 7 大章节与 49 大社区论坛研判一次性送达，无需拆条分发与 15s 等待；49 源按剩余字符预算自动选详略（见下），**任何一档都不会删源**。
+- **页面只推一个微信页**：点击"手动推送"立即发送**单页完整微信卡片**，开头 VIX 专栏、既有完整章节与 49 大社区论坛研判一次性送达，无需拆条分发与 15s 等待；49 源按剩余字符预算自动选详略（见下），**任何一档都不会删源**。
 - **⏰ 推送前时间核对**：每一次推送前均重新抓取行情+社区数据，并读取当前时间；标题与正文中的"生成时间 / 时间核对"等全部时间戳**实时刷新为最新时间**后再发送（网页按钮与命令行推送均已内置）。
 - **📅 推送前频道最新内容核对**：**每一次推送都重新抓取并逐条检查** 49 个频道内容是否为频道最新（`community_data.py` 每次生成当天日期），不因当天已抓取过而复用历史结果；任一频道缺少「最新读取」标记、检查失败或结果非当天，**手动推送**拒绝推送；**定时推送** (`--scheduled`) 则仅警告不阻断，确保每天 09:00 定时任务可运行。
-- **🧪 推送前全来源数据准确性校验** (`verify_quotes.py`)：**每一次推送前**对 `market_data.json` 全部 11 个标的做 **Yahoo 官方口径 × Stooq 实时 × Stooq 历史日线重算 × ECB 汇率** 多来源交叉校验——内部自洽 (涨跌额/涨跌幅 ↔ last/prev_close)、行情日期健全性（不超前/不陈旧）、点位与涨跌幅逐源比对；**≥2 个独立来源族彼此一致但与流水线矛盾、或与主源官方口径矛盾即判定 FAIL 并阻断推送** (CI 中 FAIL 时工作流直接终止，绝不把错误数字推给读者)。单源不可达仅告警不阻断，校验报告公开在 `_site/verify_report.json`。背景：2026-09-16 恒指当日 +0.19% 曾被误算成 −2.22% 并推送，本机制保证同类错误在推送前被拦截。命令行可用 `--skip-verify` 跳过（不推荐）、`--verify-strict` 收紧为 WARN 也阻断。
+- **🧪 推送前全来源数据准确性校验** (`verify_quotes.py`)：**每一次推送前**对 `market_data.json` 全部 12 个行情标的（含 VIX）做 **Yahoo 官方口径 × Stooq 实时 × Stooq 历史日线重算 × ECB 汇率** 多来源交叉校验——内部自洽 (涨跌额/涨跌幅 ↔ last/prev_close)、行情日期健全性（不超前/不陈旧）、点位与涨跌幅逐源比对；**≥2 个独立来源族彼此一致但与流水线矛盾、或与主源官方口径矛盾即判定 FAIL 并阻断推送** (CI 中 FAIL 时工作流直接终止，绝不把错误数字推给读者)。单源不可达仅告警不阻断，校验报告公开在 `_site/verify_report.json`。背景：2026-09-16 恒指当日 +0.19% 曾被误算成 −2.22% 并推送，本机制保证同类错误在推送前被拦截。命令行可用 `--skip-verify` 跳过（不推荐）、`--verify-strict` 收紧为 WARN 也阻断。
   > ⚠️ 推送门禁内置于 `wechat_push.py --push`（FAIL 即 exit 5，不依赖任何工作流改动即生效）。CI 侧的
   > fail-fast 校验步骤与 `verify_report.json` 公开因 GitHub App 凭证无 `workflows` 权限，改以补丁交付：
   > `git apply docs/macro-ci-workflow.patch` 后生效（三处：wechat/daily 任务抓取行情后的**阻断式**校验、

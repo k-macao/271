@@ -4,8 +4,9 @@
 章鱼 AI·全景分析（量化策略多因子分析） — 动态建站 (build_site.py)
 
 读取 market_data.json + community_data.json (+ sentiment_data.json + macro_data.json)，
-把 report.html 模板中的 {{占位符}} 替换为最新抓取数据，并动态注入 01 节每日全球全景扫描、
-49 大社区最新研判（14 原有 + 20 前次新增 + 15 本次扩容）、02 节宏观/财经快讯与「舆情因子接入实测」区块，
+把 report.html 模板中的 {{占位符}} 替换为最新抓取数据，并动态注入 00 节每日 VIX 恐慌指数、
+01 节每日全球全景扫描、49 大社区最新研判（14 原有 + 20 前次新增 + 15 本次扩容）、
+02 节宏观/财经快讯与「舆情因子接入实测」区块，
 同时在每个社区卡片后追加核心量化指标（实体级情感、事件分类、相关性、新颖度），
 生成最终 report.html（页面源文件，供 GitHub Pages 部署与 wechat_push.py 内嵌）。
 
@@ -13,6 +14,7 @@
   {{TS_FULL}}             构建时间戳（秒级 UTC）
   {{QUOTE_DATE_CN}}       恒指最新行情日期，如 "8 月 28 日"
   {{HSI_LAST}} {{HSI_CHG}} {{HSI_PCT}} {{HSI_ASOF}}   各行情标的（见 market_data.py）
+  {{VIX_LAST}} {{VIX_CHG}} {{VIX_PCT}} {{VIX_ASOF}}   每日 VIX 恐慌指数
   {{GOLD_LAST}} {{WTI_LAST}} {{BRENT_LAST}} …         同上，全量标的
   {{CD_01}} .. {{CD_49}}  49 大社区「最新读取」日期（取抓取日，即当天）
   {{COMMUNITY_TOTAL}} / {{COMMUNITY_TYPE_TOTAL}} / {{CF_*}}  03 节社区源数、类型数与多空家数（现算）
@@ -23,6 +25,10 @@
   - 若存在 community_data.json，则解析其中 49 条社区数据，生成最新社区 HTML 列表，
     替换模板中 <!-- COMMUNITY_LIST:BEGIN --> ... <!-- COMMUNITY_LIST:END --> 之间的内容
   - 若不存在，则保留模板原有静态社区内容（仅日期占位符会被刷新），保证向后兼容
+
+每日 VIX 注入 (00 节):
+  - 由 vix_daily.py 读取当次 quotes.VIX，统一生成点位、日变动、实践分档、30 日幅度换算与 Q/P 边界说明
+  - VIX 缺失时明确显示「今日未获取」，绝不回填历史点位，也不把缺失解释成低恐慌
 
 全景扫描注入 (01 节):
   - 由 panorama.py 用当次四路数据（行情 / 宏观快讯 / 舆情因子 / 社区研判）现算：
@@ -70,6 +76,7 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 import sentiment_match as smatch                           # noqa: E402  采集→匹配→脱敏展示层
+import vix_daily                                           # noqa: E402  00 节「每日 VIX 恐慌指数」统一口径
 import panorama                                            # noqa: E402  01 节「每日全球全景扫描」推理引擎
 import macro_data as macro_data_mod                        # noqa: E402  02 节快讯可用性判定（兜底口径单一事实源）
 import quant_pair                                          # noqa: E402  每条内容后的 AI 量化配对
@@ -84,7 +91,7 @@ except Exception:                                          # 注册表缺失/异
             in ('1', 'true', 'yes', 'on')
 
 # 行情占位符规则: key -> (中文名, 小数位组)
-QUOTE_KEYS = ['HSI', 'HSTECH', 'HSCE', 'SPX', 'NDQ', 'DJI', 'GOLD', 'WTI', 'BRENT', 'USDCNH', 'USDCNY']
+QUOTE_KEYS = ['VIX', 'HSI', 'HSTECH', 'HSCE', 'SPX', 'NDQ', 'DJI', 'GOLD', 'WTI', 'BRENT', 'USDCNH', 'USDCNY']
 FX_KEYS = {'USDCNH', 'USDCNY'}
 
 MINUS = '\u2212'  # U+2212 真正的减号
@@ -98,6 +105,11 @@ MACROLIST_MARK = '<!-- MACROLIST -->'
 MACROLIST_BEGIN = '<!-- MACROLIST:BEGIN -->'
 MACROLIST_END = '<!-- MACROLIST:END -->'
 MACROLIST_CLOSE = '<!-- /MACROLIST -->'
+# 00 节每日 VIX 恐慌指数占位区（同一套单标记 + 结束哨兵，保证重复构建幂等）
+VIX_MARK = '<!-- VIX -->'
+VIX_BEGIN = '<!-- VIX:BEGIN -->'
+VIX_END = '<!-- VIX:END -->'
+VIX_CLOSE = '<!-- /VIX -->'
 # 01 节每日全球全景扫描占位区（写法与 MACROLIST 一致：单标记 + 结束哨兵，保证重复构建幂等）
 PANORAMA_MARK = '<!-- PANORAMA -->'
 PANORAMA_BEGIN = '<!-- PANORAMA:BEGIN -->'
@@ -581,6 +593,37 @@ def inject_macro_list(template, macro_html):
     return template
 
 
+def build_vix_html(market_data):
+    """00 节「每日 VIX 恐慌指数」：只读当次行情，统一解释口径与缺失降级。"""
+    data = vix_daily.analyze(market_data)
+    if data.get('available'):
+        print(f'  🌡️ 已动态注入 00 节 VIX：{data["level_text"]} · '
+              f'{data["band"]["label"]} · {data["trend"]["label"]} · '
+              f'行情日期 {data.get("as_of") or "—"}')
+    else:
+        print('  🌡️ 00 节 VIX 降级为「今日未获取」—— 不回填历史读数')
+    return vix_daily.render_web(data)
+
+
+def inject_vix(template, vix_html):
+    """把 VIX 注入模板 00 节；支持成对标记与单标记，重复构建原地替换。"""
+    block = f'{VIX_MARK}\n{vix_html}\n{VIX_CLOSE}'
+    if VIX_BEGIN in template and VIX_END in template:
+        pattern = re.compile(re.escape(VIX_BEGIN) + r'.*?' + re.escape(VIX_END), re.S)
+        new_html, count = pattern.subn(lambda _m: block, template, count=1)
+        if count:
+            return new_html
+    if VIX_MARK in template:
+        if VIX_CLOSE in template:
+            pattern = re.compile(re.escape(VIX_MARK) + r'.*?' + re.escape(VIX_CLOSE), re.S)
+            new_html, count = pattern.subn(lambda _m: block, template, count=1)
+            if count:
+                return new_html
+        return template.replace(VIX_MARK, block, 1)
+    print('  ⚠️ 未找到 VIX 标记，跳过 00 节每日 VIX 恐慌指数注入', file=sys.stderr)
+    return template
+
+
 def build_panorama_html(market_data, macro_data, sentiment_data, community_data, now=None):
     """01 节「每日全球全景扫描」：四路当次数据 → 5 大推动力量 / 噪音清单 / 做多结论。
 
@@ -967,7 +1010,8 @@ def main():
     leftovers = find_leftovers(template)
     if (not leftovers and COMMUNITY_LIST_BEGIN not in template
             and SENTIMENT_LIST_BEGIN not in template and MACROLIST_MARK not in template
-            and MACROLIST_BEGIN not in template and PANORAMA_MARK not in template
+            and MACROLIST_BEGIN not in template and VIX_MARK not in template
+            and VIX_BEGIN not in template and PANORAMA_MARK not in template
             and PANORAMA_BEGIN not in template and FORECAST_MARK not in template
             and FORECAST_BEGIN not in template):
         print(f'错误: {args.template} 中没有 {{占位符}}，疑似已构建过的产物。\n'
@@ -1059,6 +1103,7 @@ def main():
         print('  ℹ️ 社区数据为空，跳过动态注入，保留模板原有社区内容')
     template = ensure_community_ai_quant(template, market=data)
 
+    template = inject_vix(template, build_vix_html(data))
     template = inject_panorama(template, build_panorama_html(
         data, macro_data, sentiment_data, community_data, now=now))
     template = inject_macro_list(template, build_macro_html(macro_data, now=now, market=data))
