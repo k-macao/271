@@ -371,6 +371,44 @@ button, a { -webkit-tap-highlight-color:transparent; }
   color:var(--muted);
   font:10px/1.7 var(--mono);
 }
+/* 00 / 每日 VIX：当次点位 + 研究口径。分档仅作阅读导航，不生成交易信号。 */
+.vix-panel {
+  position:relative;
+  overflow:hidden;
+  padding:20px;
+  color:var(--ink);
+  background:linear-gradient(135deg,rgba(17,25,48,.96),rgba(31,16,42,.9));
+  border:1px solid rgba(79,229,255,.32);
+  border-radius:8px;
+  box-shadow:inset 0 0 28px rgba(79,229,255,.04),0 12px 28px rgba(0,0,0,.13);
+}
+.vix-panel::before { content:""; position:absolute; top:0; left:0; width:88px; height:2px; background:linear-gradient(90deg,var(--cyan),var(--danger)); box-shadow:0 0 12px rgba(79,229,255,.48); }
+.vix-live-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 13px; }
+.vix-symbol { color:var(--cyan); font:700 11px/1 var(--mono); letter-spacing:.12em; }
+.vix-value { color:var(--ink); font:700 clamp(34px,6vw,54px)/.95 var(--serif); text-shadow:0 0 24px rgba(79,229,255,.18); }
+.vix-change { font:700 13px/1 var(--mono); }
+.vix-change.vix-up { color:var(--danger); }
+.vix-change.vix-down { color:var(--neon); }
+.vix-change.vix-flat,.vix-change.vix-unknown { color:var(--muted-strong); }
+.vix-chip { margin-left:auto; padding:5px 9px; color:#07101b; background:var(--cyan); border-radius:2px; font:700 10px/1.1 var(--hei); }
+.vix-panel[data-vix-state="very-low"] .vix-chip { background:var(--neon); }
+.vix-panel[data-vix-state="elevated"] .vix-chip { background:var(--pink); color:#fff; }
+.vix-panel[data-vix-state="high"] .vix-chip,.vix-panel[data-vix-state="extreme"] .vix-chip { background:var(--danger); color:#fff; }
+.vix-gauge { margin:16px 0 13px; }
+.vix-gauge-track { position:relative; height:8px; border:1px solid rgba(142,163,220,.28); border-radius:9px; background:linear-gradient(90deg,var(--neon) 0 24%,var(--cyan) 24% 40%,var(--violet) 40% 60%,var(--pink) 60% 80%,var(--danger) 80% 100%); }
+.vix-gauge-track i { position:absolute; top:50%; width:3px; height:20px; background:#fff; box-shadow:0 0 9px #fff; transform:translate(-50%,-50%); }
+.vix-gauge-labels { display:flex; justify-content:space-between; gap:8px; margin-top:7px; color:var(--muted); font:9px/1.2 var(--mono); }
+.vix-summary { margin:0 0 13px; padding:9px 11px; color:var(--muted-strong); background:rgba(6,10,22,.5); border-left:3px solid var(--cyan); border-radius:3px; font-size:12px; }
+.vix-summary strong { color:var(--ink); }
+.vix-summary > span { display:block; margin-top:2px; color:var(--muted); font:10px/1.5 var(--mono); }
+.vix-explain-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.vix-explain-grid article { min-width:0; padding:11px 12px; background:rgba(6,10,22,.43); border:1px solid var(--border); border-radius:5px; }
+.vix-explain-grid strong { display:block; margin-bottom:4px; color:var(--cyan); font-size:11.5px; }
+.vix-explain-grid span { display:block; color:var(--muted-strong); font-size:11px; line-height:1.75; }
+.vix-alert { margin:11px 0 13px; padding:9px 11px; color:var(--muted-strong); background:rgba(255,107,125,.07); border-left:3px solid var(--danger); border-radius:3px; font-size:11.5px; }
+.vix-missing .vix-chip { color:#fff; background:var(--danger); }
+.vix-source { margin-top:10px; color:var(--muted); font:10px/1.7 var(--mono); }
+.vix-source a { color:var(--cyan); text-decoration:underline; text-underline-offset:2px; }
 .pub-heading {
   display:flex;
   align-items:center;
@@ -385,6 +423,7 @@ button, a { -webkit-tap-highlight-color:transparent; }
   border:0;
   padding:0;
 }
+#vix { margin-top:0; }
 .pub-heading::before { content:""; flex:0 0 5px; width:5px; height:1.12em; background:linear-gradient(var(--cyan),var(--violet)); box-shadow:0 0 12px rgba(79,229,255,.62); }
 .pub-heading::after { content:""; height:1px; flex:1; min-width:18px; background:linear-gradient(90deg,rgba(79,229,255,.35),transparent); }
 .pub-box, .quant-box {
@@ -614,6 +653,10 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
   .opening-axis-track { order:3; flex-basis:100%; min-width:0; padding-top:4px; }
   .opening-scale { padding:0 5px; }
   .opening-reading { margin-top:17px; }
+  .vix-panel { padding:16px 14px; }
+  .vix-chip { width:100%; margin-left:0; text-align:center; }
+  .vix-explain-grid { grid-template-columns:1fr; }
+  .vix-gauge-labels { font-size:8px; }
   .pub-heading { margin-top:31px; font-size:18px; }
   .pub-box, .quant-box, .pub-card { padding:14px; }
   .push-wrap { padding:16px; }
@@ -652,6 +695,7 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
   </header>
 
   <nav class="raid-nav" aria-label="报告章节导航">
+    <a href="#vix"><b>00</b>VIX 恐慌指数</a>
     <a href="#battlefield"><b>01</b>战区扫描</a>
     <a href="#market"><b>02</b>行情快照</a>
     <a href="#intel"><b>03</b>情报中心</a>
@@ -660,6 +704,11 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
   </nav>
 
   <main class="main">
+
+    <h2 class="pub-heading" id="vix">00 / 每日 VIX 恐慌指数 (Daily VIX Fear Gauge · 未来 30 天隐含波动率)</h2>
+    <div id="vixDaily">
+<!-- VIX -->
+    </div>
 
     <section class="opening-brief" aria-labelledby="openingSignalTitle">
       <div class="opening-kicker">OPENING SIGNAL <span>多空先行 · 证据随后</span></div>
@@ -691,6 +740,7 @@ code { padding:1px 5px; color:var(--cyan); background:rgba(79,229,255,.08); bord
       <div class="pub-sub">◆ 行情快照 · {{QUOTE_DATE_CN}} · {{TS_FULL}}</div>
       <table class="quote-table">
         <tr><th>市场</th><th>最新</th><th>涨跌</th><th>涨跌幅</th><th>行情日期</th></tr>
+        <tr><td>VIX 恐慌指数</td><td>{{VIX_LAST}}</td><td>{{VIX_CHG}}</td><td class="q-pct">{{VIX_PCT}}</td><td>{{VIX_ASOF}}</td></tr>
         <tr><td>恒生指数</td><td>{{HSI_LAST}}</td><td>{{HSI_CHG}}</td><td class="q-pct">{{HSI_PCT}}</td><td>{{HSI_ASOF}}</td></tr>
         <tr><td>恒生科技指数</td><td>{{HSTECH_LAST}}</td><td>{{HSTECH_CHG}}</td><td class="q-pct">{{HSTECH_PCT}}</td><td>{{HSTECH_ASOF}}</td></tr>
         <tr><td>恒生中国企业指数</td><td>{{HSCE_LAST}}</td><td>{{HSCE_CHG}}</td><td class="q-pct">{{HSCE_PCT}}</td><td>{{HSCE_ASOF}}</td></tr>

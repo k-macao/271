@@ -65,10 +65,12 @@ from PIL import Image, ImageDraw
 
 # 03 数据管线
 try:
+    import vix_daily
     import panorama
     import forecast as forecast_mod
     import macro_data as macro_data_mod
 except Exception:
+    vix_daily = None
     panorama = None
     forecast_mod = None
     macro_data_mod = None
@@ -131,6 +133,12 @@ def build_report_pages(market, community, macro, sentiment):
     now = datetime.now(timezone.utc)
     pages = {1: [], 2: [], 3: [], 4: []}
 
+    # ---------- Page1 开头：每日 VIX 恐慌指数 ----------
+    if vix_daily:
+        pages[1].extend(vix_daily.render_plain(vix_daily.analyze(market)))
+    else:
+        pages[1].append("VIX 模块未加载")
+
     # ---------- Page1: 全景扫描 ----------
     if panorama:
         try:
@@ -165,7 +173,7 @@ def build_report_pages(market, community, macro, sentiment):
     if quotes:
         fetch_date = market.get('fetch_date') or ''
         pages[2].append(f"行情 {fetch_date} 抓取")
-        order = ['HSI','HSTECH','HSCE','SPX','NDQ','DJI','GOLD','WTI','BRENT','USDCNH','USDCNY']
+        order = ['VIX','HSI','HSTECH','HSCE','SPX','NDQ','DJI','GOLD','WTI','BRENT','USDCNH','USDCNY']
         for k in order:
             q = quotes.get(k) or {}
             if q.get('last') is None and q.get('pct') is None:

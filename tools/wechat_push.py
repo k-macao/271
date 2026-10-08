@@ -10,6 +10,8 @@
   • 一对多群组推送: 默认推送至 oai.1 群组 (PUSHPLUS_TOPIC='oai.1')，群内所有关注成员同步接收。
   • 单页完整推送: 每次只推一条完整微信卡片 (单页全文)，解除 19,000 限制 (上限 100,000 字符)，无需分条分发与等待。
   • 每次推送均重新抓取: 不复用上一轮抓取结果；推送前逐条核对 49 个频道的「最新读取」标记，抓取失败/缺项时不得推送。
+  • 00 栏每日 VIX 恐慌指数: 当次抓取 Cboe VIX 点位与日变动，按期权市场未来 30 天隐含波动率
+    的正确口径解释；明确区分风险中性 Q 测度与现实 P 测度，缺行情时不回填历史读数。
   • 01 栏每日全球全景扫描: 由 panorama.py 在推送前现算 —— 推动股价的 5 大力量（重点/次要/噪音 ·
     利好/利空 · 0~100 力量分）、宏观事件/板块轮动/情绪变化三大关注面、以及「是否可以做多」的
     合成分结论；四路数据全缺时降级为「本栏不编故事」，不回填历史叙事。
@@ -58,6 +60,7 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 import sentiment_match as smatch                          # noqa: E402  采集→匹配→脱敏展示层
+import vix_daily                                          # noqa: E402  00 栏「每日 VIX 恐慌指数」统一口径
 import panorama                                           # noqa: E402  01 栏「每日全球全景扫描」推理引擎
 import macro_data as macro_data_mod                       # noqa: E402  02 栏快讯可用性判定（兜底口径单一事实源）
 import community_data as community_mod                    # noqa: E402  49 大社区兜底数据集（缺 community_data.json 时同构生成）
@@ -463,7 +466,7 @@ def fit_forecast_block(html, fc_data, neon=WECHAT_NEON, green=WECHAT_GREEN, ink=
     """把 04 栏塞进微信单页剩余的字符预算里。
 
     微信单页有 CONTENT_LIMIT 硬上限、CONTENT_SAFE_LIMIT 推送门禁，超了整条推送会被直接拦下。
-    04 栏是新增栏目，不能让它把 01~07 既有栏目挤掉，所以这里按**剩余预算**逐级收敛：
+    04 栏不能把 00 VIX 与其它既有栏目挤掉，所以这里按**剩余预算**逐级收敛：
 
         完整版（逐标的表 + 驱动拆解 + 三路信号 + 回看 + 两张字符配图）
           → 精简版（倾向 + 逐标的表 + 回看一行）
@@ -776,6 +779,7 @@ def build_single_wechat_html(now=None):
     def macro_live_quotes():
         """行情快照 —— 与快讯并排展示的另一条动态链路（market_data.json）。"""
         return (sub('◆ 行情快照 (Live Quotes · 构建时自动抓取)') +
+                'VIX 恐慌指数 <b>' + qq('VIX') + '</b>（' + pct('VIX') + '）<br/>' +
                 '恒指 <b>' + qq('HSI') + '</b>（' + pct('HSI') + '）· 恒科 <b>' + qq('HSTECH') + '</b>（' +
                 pct('HSTECH') + '）· 恒生国企 ' + qq('HSCE') + '<br/>' +
                 '标普 ' + qq('SPX') + '（' + pct('SPX') + '）· 纳指 ' + qq('NDQ') + '（' + pct('NDQ') + '）· ' +
@@ -906,6 +910,16 @@ def build_single_wechat_html(now=None):
          if (_xd.get('summary') or {}).get('kept_items') else '未获取（02 栏已标注，未回填旧文）')
     )
 
+    # ---------- 00 栏：每日 VIX 恐慌指数（当次行情 + 统一研究口径） ----------
+    _vix = vix_daily.analyze(_md)
+    vix_block = vix_daily.render_wechat(_vix, cyan=GR, danger=WECHAT_DANGER, neon=NEON)
+    if _vix.get('available'):
+        print(f'  🌡️ 微信推送 00 栏：VIX {_vix["level_text"]} · '
+              f'{_vix["band"]["label"]} · {_vix["trend"]["label"]} · '
+              f'行情日期 {_vix.get("as_of") or "—"}')
+    else:
+        print('  🌡️ 微信推送 00 栏：VIX 今日未获取 —— 不回填历史读数')
+
     # ---------- 01 栏：每日全球全景扫描（四路当次数据现算，零写死叙事） ----------
     _scan = panorama.scan(market=_md, macro=_xd, sentiment=_sd, community=_cd, now=now)
     panorama_block = panorama.render_wechat(_scan, neon=NEON, green=GR, ink=INK)
@@ -956,6 +970,9 @@ def build_single_wechat_html(now=None):
     <div style="color:{WECHAT_TEXT};font-family:'Rajdhani','Noto Sans SC','Microsoft YaHei',sans-serif;font-size:22px;font-weight:700;letter-spacing:1px;line-height:1.35;">{TITLE}</div>
     <div style="color:{WECHAT_TEXT_SOFT};font-size:13px;margin-top:6px;font-family:'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;">全网 AI 调研境内境外数据 · 多模型混合部署 · 将市场信号编译为可执行战术</div>
   </div>
+
+  {h('00 / 每日 VIX 恐慌指数 (Daily VIX Fear Gauge · 未来 30 天隐含波动率)')}
+  {vix_block}
 
   {fig_long_short}
   {community_overview_html}
