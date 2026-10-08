@@ -473,7 +473,11 @@ class TestSourceAnonymity(unittest.TestCase):
                 os.environ.pop('SENTIMENT_DATA', None)
             else:
                 os.environ['SENTIMENT_DATA'] = old
-        i, j = html.index('03B /'), html.index('07 /')
+        # Community/news payloads are external text and may themselves contain
+        # strings such as "07 /" before section 03B. Find the 07 boundary only
+        # after the 03B heading so the test actually inspects the sentiment block.
+        i = html.index('03B /')
+        j = html.index('07 /', i + len('03B /'))
         return html[i:j]
 
     def test_web_03b_hides_every_source_trace(self):
